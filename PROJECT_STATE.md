@@ -77,4 +77,11 @@ Phase1時点でのCorporate機能は「単発の買収・固定株価IPO・役�
 - `hq`タブ先頭に「P&L・貸借対照表を見る」ボタンを追加し、既存の`FinancialsScreen`(Phase1から存在)への導線をDashboard経由だけでなくCorporate画面からも辿れるようにした。
 - IPO/銀行融資/M&Aは元々`CorporateScreen`の`ipo`/`loans`/`ma`タブとして実装済みのため、当初のStep D想定(証券/銀行)と重複している。Step Dは実質「株価チャート(現状は現在値のみで推移履歴が無い)」「ニュース・イベントフィード」が主な残作業になる。
 
-Step D(株価推移チャート/ニュース・イベントフィード)は未着手。
+### Step D(完了) — 株価推移チャート/ニュース・イベントフィード
+
+- `CoffeeEmpireState.history`に`stockPrices: StockPricePoint[]`と`newsFeed: NewsFeedEntry[]`を追加(既存の`incomeStatements`等と同じ配列型の追加のみ、既存フィールドは無変更)。`turnEngine.advanceTurn`自体は変更せず、`coreSlice.advance()`側で他の履歴配列と同じ`capHistory`パターンで積み上げる(上場中のみ`stockPrices`に追加、`triggeredEvents`は毎ターン`newsFeed`に追加)。
+- `SimEvent`(`packages/core`)自体はUI文言を持たない設計(基盤④README準拠)のため、見出し文言は`apps/mobile/src/data/eventNews.ts`でイベントid→日本語見出しのマップとして新規に用意し、core側の型・データは変更していない。
+- 新規`NewsScreen`(スタック画面)を追加し、`newsFeed`を新しい順に一覧表示。`HudBar`にベルアイコンを追加してこの画面への導線とし、ニュースが1件でもあれば赤い未読ドットを表示する(既読管理はせず「1件でもあれば表示」の簡易実装)。
+- `CorporateScreen`の`ipo`タブに既存`LineChart`を再利用した株価推移チャートを追加(2点以上蓄積されたら表示)。
+
+Phase3(Coffee Inc 2 UI/UXリファインメント)のStep A〜D、当初計画の主要項目は完了。座席・インテリア(Design & Equipmentタブの一部)は既知の未実装スコープとして残る。

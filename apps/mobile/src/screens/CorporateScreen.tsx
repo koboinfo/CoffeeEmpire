@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Gauge } from '../components/Gauge';
+import { LineChart } from '../components/LineChart';
 import {
   calculateAcquisitionPrice,
   calculateDepartmentUpgradeCost,
@@ -333,6 +334,12 @@ export function CorporateScreen() {
           <SectionLabel icon="trending-up" label="IPO・株式" />
           {state.stock.isPublic ? (
             <>
+              {state.history.stockPrices.length >= 2 ? (
+                <LineChart
+                  values={state.history.stockPrices.map((point) => point.sharePrice)}
+                  color={colors.gold}
+                />
+              ) : null}
               <Text style={styles.rowLabel}>株価 {formatCurrency(state.stock.sharePrice)}</Text>
               <Text style={styles.rowLabel}>発行済株式数 {state.stock.totalShares.toLocaleString('ja-JP')}</Text>
               <Text style={styles.rowLabel}>浮動株数 {state.stock.publicFloatShares.toLocaleString('ja-JP')}</Text>

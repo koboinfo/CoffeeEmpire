@@ -64,7 +64,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
     try {
       const { state, properties, pendingCapitalInjection } = get();
       const turnContext = buildTurnContext(properties);
-      const { nextState, incomeStatement, balanceSheet, cashFlowStatement, storeReports } = advanceTurn(
+      const { nextState, incomeStatement, balanceSheet, cashFlowStatement, storeReports, triggeredEvents } = advanceTurn(
         state,
         turnContext,
         events,
@@ -80,6 +80,19 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
           balanceSheets: capHistory([...nextState.history.balanceSheets, balanceSheet], MAX_HISTORY_TURNS),
           cashFlowStatements: capHistory(
             [...nextState.history.cashFlowStatements, cashFlowStatement],
+            MAX_HISTORY_TURNS
+          ),
+          stockPrices: nextState.stock.isPublic
+            ? capHistory(
+                [...nextState.history.stockPrices, { turn: nextState.turn, sharePrice: nextState.stock.sharePrice }],
+                MAX_HISTORY_TURNS
+              )
+            : nextState.history.stockPrices,
+          newsFeed: capHistory(
+            [
+              ...nextState.history.newsFeed,
+              ...triggeredEvents.map((event) => ({ turn: nextState.turn, eventId: event.id })),
+            ],
             MAX_HISTORY_TURNS
           ),
         },

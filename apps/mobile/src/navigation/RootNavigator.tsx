@@ -13,6 +13,7 @@ import { StoreDetailScreen } from '../screens/StoreDetailScreen';
 import { CorporateScreen } from '../screens/CorporateScreen';
 import { RealEstateScreen } from '../screens/RealEstateScreen';
 import { SupplyChainScreen } from '../screens/SupplyChainScreen';
+import { NewsScreen } from '../screens/NewsScreen';
 import { colors } from '../theme/theme';
 
 export type TabParamList = {
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   NewStore: { cityId?: string } | undefined;
   StoreDetail: { storeId: string };
   RealEstate: undefined;
+  News: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -98,6 +100,7 @@ export function RootNavigator() {
       <Stack.Screen name="NewStore" component={NewStoreScreen} options={{ title: '新規出店' }} />
       <Stack.Screen name="StoreDetail" component={StoreDetailScreen} options={{ title: '店舗詳細' }} />
       <Stack.Screen name="RealEstate" component={RealEstateScreen} options={{ title: '不動産投資' }} />
+      <Stack.Screen name="News" component={NewsScreen} options={{ title: 'ニュース' }} />
     </Stack.Navigator>
   );
 }

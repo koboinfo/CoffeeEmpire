@@ -62,6 +62,6 @@ export function createInitialState(): CoffeeEmpireState {
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
-    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [] },
+    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [], stockPrices: [], newsFeed: [] },
   };
 }

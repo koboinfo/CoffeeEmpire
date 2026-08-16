@@ -75,5 +75,17 @@ export interface CoffeeEmpireState extends SimState {
     incomeStatements: IncomeStatement[];
     balanceSheets: BalanceSheet[];
     cashFlowStatements: CashFlowStatement[];
+    stockPrices: StockPricePoint[];
+    newsFeed: NewsFeedEntry[];
   };
+}
+
+export interface StockPricePoint {
+  turn: number;
+  sharePrice: number;
+}
+
+export interface NewsFeedEntry {
+  turn: number;
+  eventId: string;
 }

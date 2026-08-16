@@ -56,7 +56,7 @@ function makeState(overrides: Partial<CoffeeEmpireState> = {}): CoffeeEmpireStat
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
-    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [] },
+    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [], stockPrices: [], newsFeed: [] },
     ...overrides,
   };
 }

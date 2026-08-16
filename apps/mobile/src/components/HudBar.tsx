@@ -1,10 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../state/gameStore';
 import { GameSpeedControl } from './GameSpeedControl';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radius, spacing, typography } from '../theme/theme';
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 const BASE_YEAR = 2026;
 
@@ -46,6 +51,7 @@ function HudPill({
 }
 
 export function HudBar() {
+  const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const state = useGameStore((store) => store.state);
   const latestBalanceSheet = useGameStore((store) => store.latestBalanceSheet);
@@ -63,7 +69,13 @@ export function HudBar() {
           <Ionicons name="calendar-outline" size={15} color={colors.roastLight} />
           <Text style={styles.dateText}>{formatTurnDate(state.turn)}</Text>
         </View>
-        <GameSpeedControl />
+        <View style={styles.rightRow}>
+          <Pressable style={styles.bellButton} onPress={() => navigation.navigate('News')}>
+            <Ionicons name="newspaper-outline" size={16} color={colors.cream} />
+            {state.history.newsFeed.length > 0 ? <View style={styles.bellDot} /> : null}
+          </Pressable>
+          <GameSpeedControl />
+        </View>
       </View>
       <View style={styles.statsRow}>
         <HudPill icon="cafe" iconColor={colors.gold} label="Cash" value={formatCurrency(state.cash)} />
@@ -100,6 +112,26 @@ const styles = StyleSheet.create({
   },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   dateText: { ...typography.label, color: colors.cream },
+  rightRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  bellButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: colors.hudPill,
+    borderWidth: 1,
+    borderColor: colors.hudPillBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.negative,
+  },
   statsRow: { flexDirection: 'row', gap: spacing.xs },
   pill: {
     flex: 1,
