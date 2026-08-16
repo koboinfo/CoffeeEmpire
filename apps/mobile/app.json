@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Coffee Empire",
+    "slug": "coffee-empire",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.coffeeempire.mobile" },
+    "android": { "package": "com.coffeeempire.mobile" }
+  }
+}
