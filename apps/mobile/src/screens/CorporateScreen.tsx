@@ -1,6 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import type { RootStackParamList } from '../navigation/RootNavigator';
+import { Gauge } from '../components/Gauge';
 import {
   calculateAcquisitionPrice,
   calculateDepartmentUpgradeCost,
@@ -87,7 +91,10 @@ function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; l
   );
 }
 
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
 export function CorporateScreen() {
+  const navigation = useNavigation<Navigation>();
   const state = useGameStore((s) => s.state);
   const latestBalanceSheet = useGameStore((s) => s.latestBalanceSheet);
   const establishHeadquarters = useGameStore((s) => s.establishHeadquarters);
@@ -165,6 +172,16 @@ export function CorporateScreen() {
 
       {activeDept === 'hq' ? (
         <>
+          <Card>
+            <SectionLabel icon="bar-chart" label="財務諸表" />
+            <AppButton
+              label="P&L・貸借対照表を見る"
+              icon="stats-chart"
+              variant="secondary"
+              onPress={() => navigation.navigate('Financials')}
+            />
+          </Card>
+
           <Card>
             <SectionLabel icon="business" label="本社オフィス" />
             {state.headquarters ? (
@@ -287,7 +304,14 @@ export function CorporateScreen() {
 
       {activeDept === 'marketing' ? (
         <Card>
-          <SectionLabel icon="megaphone" label="マーケティングキャンペーン" />
+          <SectionLabel icon="megaphone" label="ブランド認知度" />
+          <Gauge label="Brand Awareness" value={state.statuses.brandAwareness?.value ?? 0} color={colors.gold} />
+        </Card>
+      ) : null}
+
+      {activeDept === 'marketing' ? (
+        <Card>
+          <SectionLabel icon="rocket" label="マーケティングキャンペーン" />
           {state.activeCampaigns.map((campaign) => (
             <Text key={campaign.id} style={styles.rowLabel}>
               {campaign.type} — 残り{campaign.durationTurns - (state.turn - campaign.startedAtTurn)}ターン
