@@ -53,6 +53,22 @@ export function calculateStoreRevenue(store: Store, property: Property, city: Ci
   return { revenue, variableCost, customers };
 }
 
+const INTERIOR_TIER_BONUS = 0.04; // 什器・内装(furniture)のtier1につき客単価・客数に+4%
+const MAX_INTERIOR_FACTOR = 1.3; // 最大+30%(座席が豪華でも際限なく客を呼べるわけではない)
+
+/**
+ * 座席・内装(furniture)機材のtierによる売上係数。店舗に複数のfurniture機材があれば
+ * 最も高いtierのものを採用する(内装は入れ替え前提で、重ね置きでは強化されない)。
+ * calculateStoreRevenue自体には手を入れず、turnEngine側でrevenue/variableCostへ
+ * 事後乗算する(競合の需要干渉・R&D効果と同じ適用パターン)。
+ */
+export function calculateInteriorQualityFactor(equipment: Equipment[]): number {
+  const furnitureTiers = equipment.filter((item) => item.category === 'furniture').map((item) => item.tier);
+  if (furnitureTiers.length === 0) return 1;
+  const bestTier = Math.max(...furnitureTiers);
+  return clamp(1 + bestTier * INTERIOR_TIER_BONUS, 1, MAX_INTERIOR_FACTOR);
+}
+
 export function calculatePayroll(employees: Employee[]): number {
   return employees.reduce((sum, employee) => sum + employee.salaryPerMonth, 0);
 }

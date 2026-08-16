@@ -6,6 +6,7 @@ import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.j
 import type { ResearchNodeDefinition } from '../types/research.js';
 import {
   calculateStoreRevenue,
+  calculateInteriorQualityFactor,
   calculatePayroll,
   buildIncomeStatement,
   calculateStoresDepreciationAndNetBookValue,
@@ -111,9 +112,11 @@ export function advanceTurn(
 
     // 競合の出店密度による需要干渉(0.5-1.0倍)。都市内の競合店舗が多いほど客足が落ちる。
     const competitivePressure = calculateCompetitivePressure(property.cityId, state.competitorBrands);
+    const interiorQualityFactor = calculateInteriorQualityFactor(store.equipment);
     const rawRevenue = calculateStoreRevenue(store, property, city);
-    const revenue = rawRevenue.revenue * competitivePressure * researchEffects.revenueMultiplier;
-    const variableCost = rawRevenue.variableCost * competitivePressure * researchEffects.costMultiplier;
+    const revenue = rawRevenue.revenue * competitivePressure * researchEffects.revenueMultiplier * interiorQualityFactor;
+    const variableCost =
+      rawRevenue.variableCost * competitivePressure * researchEffects.costMultiplier * interiorQualityFactor;
     plItems.push({ key: `revenue:${store.id}`, label: `${store.name} 売上`, amount: revenue, kind: 'revenue' });
     storeReports[store.id] = { storeId: store.id, revenue, customers: rawRevenue.customers };
     plItems.push({

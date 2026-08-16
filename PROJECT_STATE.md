@@ -84,4 +84,15 @@ Phase1時点でのCorporate機能は「単発の買収・固定株価IPO・役�
 - 新規`NewsScreen`(スタック画面)を追加し、`newsFeed`を新しい順に一覧表示。`HudBar`にベルアイコンを追加してこの画面への導線とし、ニュースが1件でもあれば赤い未読ドットを表示する(既読管理はせず「1件でもあれば表示」の簡易実装)。
 - `CorporateScreen`の`ipo`タブに既存`LineChart`を再利用した株価推移チャートを追加(2点以上蓄積されたら表示)。
 
-Phase3(Coffee Inc 2 UI/UXリファインメント)のStep A〜D、当初計画の主要項目は完了。座席・インテリア(Design & Equipmentタブの一部)は既知の未実装スコープとして残る。
+Phase3(Coffee Inc 2 UI/UXリファインメント)のStep A〜D、当初計画の主要項目は完了。
+
+### 追加対応(完了) — 座席・インテリアの売上連動
+
+Step B時点で「新規データモデル設計が必要」としてスコープ外にしていた座席・インテリアを追加実装。新しい概念(座席数・レイアウト配置)は作らず、既存の`Equipment`型の`furniture`カテゴリ(元々型定義には存在したがカタログに1種類しかなく、売上にも無関係だった)を拡張する形で対応した。
+
+- `packages/core/src/logic/financials.ts`に`calculateInteriorQualityFactor(equipment)`を追加。店舗の`furniture`機材のうち最大tierのものを採用し、`1 + tier×4%`(上限+30%)の売上係数を返す。複数のfurniture機材を持っていても最大tierのみ有効(重ね置きで際限なく強化されない)。
+- `turnEngine.ts`で既存の`competitivePressure`・`researchEffects`と同じ「事後乗算」パターンでrevenue/variableCostに適用。`calculateStoreRevenue`自体(quality/price/satisfactionFactorのロジック)は無変更。
+- `equipmentCatalog`のfurnitureを1種類(tier2)から3段階(シンプル/スタンダード/プレミアム、tier1/2/4)に拡張し、espressoMachineと同様の「アップグレード」の意味を持たせた。
+- `DesignTab`に現在の座席・内装ボーナス(%)を表示。
+- `financials.test.ts`に4件、`turnEngine.test.ts`に1件テストを追加(既存126件+5件=131件、全パス)。
+- 座席「数」や店内レイアウト配置(什器をキャンバス上に並べるような表現)は依然として実装していない。あくまで機材tierによる売上係数という簡略化に留まる。

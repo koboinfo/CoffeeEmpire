@@ -163,6 +163,27 @@ test('advanceTurn: 設備の維持費がoperatingExpensesに含まれる', () =>
   assert.equal(incomeStatement.operatingExpenses, 3030);
 });
 
+test('advanceTurn: furniture(座席・内装)機材があると売上が増加する(interiorQualityFactor)', () => {
+  const furniture: Equipment = {
+    id: 'eq-furniture',
+    category: 'furniture',
+    tier: 4,
+    purchaseCost: 9000,
+    maintenanceCostPerMonth: 90,
+    depreciationMonths: 60,
+    purchasedAtTurn: 0,
+  };
+  const withoutFurniture = advanceTurn(makeState(), context, [], () => 1);
+  const withFurniture = advanceTurn(
+    makeState({ stores: [makeStore({ equipment: [furniture] })] }),
+    context,
+    [],
+    () => 1
+  );
+
+  assert.ok(withFurniture.incomeStatement.revenue > withoutFurniture.incomeStatement.revenue);
+});
+
 test('advanceTurn: 生豆在庫がbalanceSheetのinventoryValueに反映される', () => {
   const lot: GreenBeanLot = { id: 'lot-1', farmId: 'farm-1', qGrade: 78, kg: 100, pricePerKg: 6.5, purchasedAtTurn: 0 };
   const state = makeState({ greenBeanInventory: [lot] });

@@ -5,6 +5,7 @@ import type { Farm, GreenBeanLot } from '../types/supplyChain.js';
 import type { PLLineItem } from '../types/simState.js';
 import {
   calculateStoreRevenue,
+  calculateInteriorQualityFactor,
   calculatePayroll,
   calculatePL,
   calculateTax,
@@ -179,6 +180,31 @@ function makeEquipment(overrides: Partial<Equipment> = {}): Equipment {
     ...overrides,
   };
 }
+
+test('calculateInteriorQualityFactor: furniture機材がなければ係数1', () => {
+  assert.equal(calculateInteriorQualityFactor([]), 1);
+  assert.equal(calculateInteriorQualityFactor([makeEquipment({ category: 'espressoMachine', tier: 5 })]), 1);
+});
+
+test('calculateInteriorQualityFactor: furniture機材のtierが高いほど係数が上がる', () => {
+  const low = calculateInteriorQualityFactor([makeEquipment({ category: 'furniture', tier: 1 })]);
+  const high = calculateInteriorQualityFactor([makeEquipment({ category: 'furniture', tier: 4 })]);
+  assert.ok(low > 1);
+  assert.ok(high > low);
+});
+
+test('calculateInteriorQualityFactor: 複数furniture機材があっても最大tierのみ採用する(重ね置きで強化されない)', () => {
+  const factor = calculateInteriorQualityFactor([
+    makeEquipment({ id: 'eq-a', category: 'furniture', tier: 1 }),
+    makeEquipment({ id: 'eq-b', category: 'furniture', tier: 4 }),
+  ]);
+  assert.equal(factor, calculateInteriorQualityFactor([makeEquipment({ category: 'furniture', tier: 4 })]));
+});
+
+test('calculateInteriorQualityFactor: 係数は上限を超えない', () => {
+  const factor = calculateInteriorQualityFactor([makeEquipment({ category: 'furniture', tier: 100 })]);
+  assert.ok(factor <= 1.3);
+});
 
 test('calculateEquipmentDepreciation: 定額法で月次償却費と簿価を計算する', () => {
   const equipment = makeEquipment({ purchaseCost: 12000, depreciationMonths: 12, purchasedAtTurn: 0 });

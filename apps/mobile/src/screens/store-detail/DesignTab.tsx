@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { equipmentCatalog, type EquipmentTemplate, type Store } from '@coffee-empire/core';
+import { calculateInteriorQualityFactor, equipmentCatalog, type EquipmentTemplate, type Store } from '@coffee-empire/core';
 import { Card } from '../../components/Card';
 import { colors, spacing, typography } from '../../theme/theme';
 
@@ -26,10 +26,17 @@ interface DesignTabProps {
 }
 
 export function DesignTab({ store, cash, purchaseEquipment, sellEquipment }: DesignTabProps) {
+  const interiorFactor = calculateInteriorQualityFactor(store.equipment);
+
   return (
     <View style={styles.container}>
       <Card>
         <SectionLabel icon="construct" label={`導入済み機材(${store.equipment.length}件)`} />
+        {interiorFactor > 1 ? (
+          <Text style={styles.bonusText}>座席・内装ボーナス: 売上 +{Math.round((interiorFactor - 1) * 100)}%</Text>
+        ) : (
+          <Text style={styles.subLabel}>座席・内装(furniture)機材を導入すると売上にボーナスが付きます</Text>
+        )}
         {store.equipment.length === 0 ? <Text style={styles.subLabel}>まだ機材がありません</Text> : null}
         {store.equipment.map((equipment) => (
           <View key={equipment.id} style={styles.row}>
@@ -72,6 +79,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
   cardLabel: { ...typography.label, color: colors.textSecondary },
   subLabel: { fontSize: 12, color: colors.textMuted },
+  bonusText: { fontSize: 12, fontWeight: '600', color: colors.positive },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
   rowLabel: { fontSize: 14, color: colors.textPrimary },
   rowValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
