@@ -39,6 +39,11 @@ export interface MenuItem {
   qualityScore: number; // 0-100
 }
 
+export interface OperatingHours {
+  open: number; // 0-23
+  close: number; // 1-24
+}
+
 export interface Store {
   id: string;
   propertyId: string;
@@ -49,4 +54,5 @@ export interface Store {
   managerId?: string;
   openedAtTurn: number;
   cumulativeCustomerSatisfaction: number; // 0-100
+  operatingHours: OperatingHours; // 表示・設定のみ。calculateStoreRevenueには未接続(既知の簡略化)
 }

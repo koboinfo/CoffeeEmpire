@@ -28,7 +28,7 @@ function makeStore(overrides: Partial<Store> = {}): Store {
     menu: [makeMenuItem()],
     employeeIds: [],
     openedAtTurn: 0,
-    cumulativeCustomerSatisfaction: 60,
+    cumulativeCustomerSatisfaction: 60, operatingHours: { open: 7, close: 21 },
     ...overrides,
   };
 }

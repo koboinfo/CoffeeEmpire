@@ -28,12 +28,19 @@ export interface TurnContext {
   farms: Record<string, Farm>;
 }
 
+export interface StoreReport {
+  storeId: string;
+  revenue: number;
+  customers: number;
+}
+
 export interface AdvanceTurnResult {
   nextState: CoffeeEmpireState;
   incomeStatement: IncomeStatement;
   balanceSheet: BalanceSheet;
   cashFlowStatement: CashFlowStatement;
   triggeredEvents: SimEvent[];
+  storeReports: Record<string, StoreReport>;
 }
 
 /**
@@ -86,6 +93,7 @@ export function advanceTurn(
   });
 
   const plItems: PLLineItem[] = [];
+  const storeReports: Record<string, StoreReport> = {};
 
   if (totalFarmMaintenanceCost > 0) {
     plItems.push({
@@ -107,6 +115,7 @@ export function advanceTurn(
     const revenue = rawRevenue.revenue * competitivePressure * researchEffects.revenueMultiplier;
     const variableCost = rawRevenue.variableCost * competitivePressure * researchEffects.costMultiplier;
     plItems.push({ key: `revenue:${store.id}`, label: `${store.name} 売上`, amount: revenue, kind: 'revenue' });
+    storeReports[store.id] = { storeId: store.id, revenue, customers: rawRevenue.customers };
     plItems.push({
       key: `cogs:${store.id}`,
       label: `${store.name} 原材料費`,
@@ -251,5 +260,5 @@ export function advanceTurn(
     ownedFarms: ownedFarmsAfterHarvest,
   };
 
-  return { nextState, incomeStatement, balanceSheet, cashFlowStatement, triggeredEvents };
+  return { nextState, incomeStatement, balanceSheet, cashFlowStatement, triggeredEvents, storeReports };
 }

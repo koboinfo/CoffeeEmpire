@@ -176,7 +176,7 @@ test('applyExecutiveAutomation: autoPricingがOFFなら価格は変わらない'
         menu: [{ id: 'm1', name: 'Latte', category: 'coffee', basePrice: 400, currentPrice: 400, costOfGoods: 100, qualityScore: 70 }],
         employeeIds: [],
         openedAtTurn: 0,
-        cumulativeCustomerSatisfaction: 60,
+        cumulativeCustomerSatisfaction: 60, operatingHours: { open: 7, close: 21 },
       },
     ],
   });
@@ -208,7 +208,7 @@ test('applyExecutiveAutomation: CFOが居てautoPricing=trueなら価格が調�
         menu: [{ id: 'm1', name: 'Latte', category: 'coffee', basePrice: 400, currentPrice: 400, costOfGoods: 100, qualityScore: 70 }],
         employeeIds: [],
         openedAtTurn: 0,
-        cumulativeCustomerSatisfaction: 60,
+        cumulativeCustomerSatisfaction: 60, operatingHours: { open: 7, close: 21 },
       },
     ],
   });
@@ -240,7 +240,7 @@ test('applyExecutiveAutomation: COOが居てautoHiring=trueなら無人店舗に
         menu: [],
         employeeIds: [],
         openedAtTurn: 0,
-        cumulativeCustomerSatisfaction: 60,
+        cumulativeCustomerSatisfaction: 60, operatingHours: { open: 7, close: 21 },
       },
     ],
   });

@@ -12,6 +12,7 @@ import {
   type CoffeeEmpireState,
   type IncomeStatement,
   type Property,
+  type StoreReport,
   type TurnContext,
 } from '@coffee-empire/core';
 import { createInitialState, sampleProperties } from '../../data/sampleWorld';
@@ -35,6 +36,7 @@ export interface CoreSlice {
   latestIncomeStatement: IncomeStatement | null;
   latestBalanceSheet: BalanceSheet | null;
   latestCashFlowStatement: CashFlowStatement | null;
+  latestStoreReports: Record<string, StoreReport>;
   isHydrated: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
@@ -49,6 +51,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   latestIncomeStatement: null,
   latestBalanceSheet: null,
   latestCashFlowStatement: null,
+  latestStoreReports: {},
   isHydrated: false,
   error: null,
 
@@ -61,7 +64,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
     try {
       const { state, properties, pendingCapitalInjection } = get();
       const turnContext = buildTurnContext(properties);
-      const { nextState, incomeStatement, balanceSheet, cashFlowStatement } = advanceTurn(
+      const { nextState, incomeStatement, balanceSheet, cashFlowStatement, storeReports } = advanceTurn(
         state,
         turnContext,
         events,
@@ -87,6 +90,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         latestIncomeStatement: incomeStatement,
         latestBalanceSheet: balanceSheet,
         latestCashFlowStatement: cashFlowStatement,
+        latestStoreReports: storeReports,
         error: null,
       });
       await saveState(updatedState);

@@ -23,7 +23,7 @@ export const sampleStores: Store[] = [
     menu: flagshipMenu,
     employeeIds: [],
     openedAtTurn: 0,
-    cumulativeCustomerSatisfaction: 65,
+    cumulativeCustomerSatisfaction: 65, operatingHours: { open: 7, close: 21 },
   },
 ];
 

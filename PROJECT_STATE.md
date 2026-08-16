@@ -60,4 +60,14 @@ Phase1時点でのCorporate機能は「単発の買収・固定株価IPO・役�
 - `NewStoreScreen`(都市詳細)にその都市の自社店舗ピン(緑バッジ、店名表示)を先頭に表示した上で、空き物件候補を2カラムグリッド(バッジ付き)で表示するよう変更。
 - 設計上の制約: `NewStoreScreen`の物件候補は`generatePropertiesForCity`で都度ランダム生成される候補であり、`gameStore.properties`に永続化されているのは実際に出店した物件のみ。そのため「競合が特定の空き物件を借りている」といった物件単位の競合可視化はStep A時点では未対応(競合の出店数は都市集計値のみ)。物件単位の空き/競合状態を永続管理したい場合はStep B以降でコア側のデータモデル拡張が必要。
 
-Step B(店舗詳細タブ)・Step C(本社財務/人事/マーケ)・Step D(証券/ニュース)は未着手。
+### Step B(完了) — 店舗詳細マネジメント画面(タブ切り替え式)
+
+- `StoreDetailScreen`を単一スクロールからタブ切り替え式(概要/運営/内装・機材/人事)に全面リファクタリング。各タブの中身は`screens/store-detail/{Overview,Operations,Design,Staff}Tab.tsx`に分割。新規`TabBar`コンポーネントを追加。
+- 概要タブ用に`turnEngine.advanceTurn`の戻り値へ`storeReports: Record<string, { storeId, revenue, customers }>`を追加(既存の`plItems`計算内で捨てていた`rawRevenue.customers`を店舗単位で保持するだけの加算的変更、既存フィールド・シグネチャは無変更)。`gameStore`の`latestStoreReports`として保持。
+- レイティングは新規指標を作らず既存の`store.cumulativeCustomerSatisfaction`(0-100)を★5段階に換算して流用。従業員満足度はその店舗所属従業員の`motivation`平均。
+- `Store`型に`operatingHours: { open, close }`を追加。運営タブで設定可能だが`calculateStoreRevenue`には未接続(表示・設定のみの既知の簡略化。将来的に営業時間を売上係数に組み込む余地を残す)。
+- 人事タブ向けに`storeSlice`へ`fireEmployee`(解雇)・`adjustSalary`(給与スライダー、採用時給与の0.5〜2倍に制限)・`trainEmployee`(研修、コスト`5000+skillLevel×500`でskillLevelを+10、最大100)を追加。内装・機材タブ向けに`sellEquipment`(購入額の50%で売却、既存機材の入れ替え用)を追加。
+- 座席・インテリアはスコープ外(Store/Equipmentに座席数や内装の概念が無く、売上モデルへの組み込みには新規データ設計が必要なため)。Design & Equipmentタブは機材(エスプレッソマシン等)の購入・売却のみ実装。将来Step以降での拡張候補として残す。
+- `packages/core`は`npm run build`でdistを再生成しないとmobile側の型が更新されない(モノレポの依存がsrcではなくdist経由のため)。Step B作業中に一度ハマったので明記する。
+
+Step C(本社財務/人事/マーケ)・Step D(証券/ニュース)は未着手。
