@@ -66,6 +66,8 @@ export interface CoffeeEmpireState extends SimState {
   entityStatus: EntityStatus;
   fiscalPeriod: FiscalPeriodState;
   isBankrupt: boolean; // 決算等でcashが一度でもマイナスになったら黒字倒産としてtrueになる(以後復帰しない)
+  isVictoryAchieved: boolean; // クリア条件(checkVictoryCondition)を一度満たしたらtrueで固定(以後の縮小では戻らない)
+  unlockedAchievementIds: string[]; // 解除済み実績(logic/achievements.ts参照)。付与順を保持するため配列。
   stores: Store[];
   employees: Employee[];
   greenBeanInventory: GreenBeanLot[];

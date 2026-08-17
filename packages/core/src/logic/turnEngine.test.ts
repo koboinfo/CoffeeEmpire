@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Property, City, Store, MenuItem, Equipment } from '../types/store.js';
+import type { Store, MenuItem, Equipment } from '../types/store.js';
 import type { GreenBeanLot } from '../types/supplyChain.js';
 import type { MarketingCampaign, RealEstateInvestment } from '../types/corporate.js';
 import type { CoffeeEmpireState, SimEvent } from '../types/simState.js';
@@ -47,6 +47,10 @@ function makeState(overrides: Partial<CoffeeEmpireState> = {}): CoffeeEmpireStat
     entityStatus: {},
     fiscalPeriod: { accumulatedPretaxIncome: 0 },
     isBankrupt: false,
+    isVictoryAchieved: false,
+    // デフォルトでentityType: 'corporation'のため、'first-incorporation'実績は既に達成済み扱いにしておく
+    // (未達成のままだとadvanceTurn初回呼び出しで報酬(cash)が付与され、無関係なテストのcash断言が狂うため)。
+    unlockedAchievementIds: ['first-incorporation'],
     stores: [makeStore()],
     employees: [],
     greenBeanInventory: [],
@@ -556,4 +560,59 @@ test('advanceTurn: 決算での一括納税でcashがマイナスになると黒
 
   assert.ok(settlement!.totalTaxDue > state.cash);
   assert.equal(nextState.isBankrupt, true);
+});
+
+test('advanceTurn: 実績の新規解除条件を満たすと報酬(cash)が加算されunlockedAchievementIdsに積まれる', () => {
+  const state = makeState({ entityType: 'soleProprietorship', unlockedAchievementIds: [], cash: 10_000 });
+  const { nextState, unlockedAchievements } = advanceTurn(state, context, [], () => 1);
+
+  // makeStateのデフォルトentityTypeは'soleProprietorship'に上書きしているため、
+  // このターンで'first-incorporation'は満たさず、実績報酬は発生しない。
+  assert.equal(unlockedAchievements.length, 0);
+  assert.equal(nextState.unlockedAchievementIds.length, 0);
+});
+
+test('advanceTurn: 法人成り済みの状態でadvanceTurnすると初回のみfirst-incorporation実績が解除され報酬が加算される', () => {
+  const baseState = makeState({ entityType: 'corporation', cash: 10_000 });
+  const notYetUnlocked = { ...baseState, unlockedAchievementIds: [] };
+  const alreadyUnlocked = { ...baseState, unlockedAchievementIds: ['first-incorporation'] };
+
+  const { nextState, unlockedAchievements } = advanceTurn(notYetUnlocked, context, [], () => 1);
+  const { nextState: nextStateAlready } = advanceTurn(alreadyUnlocked, context, [], () => 1);
+
+  const unlocked = unlockedAchievements.find((a) => a.id === 'first-incorporation');
+  assert.ok(unlocked);
+  // 報酬の有無以外は同一条件なので、cashの差はちょうど報酬額と一致する
+  assert.equal(nextState.cash - nextStateAlready.cash, unlocked!.rewardCash);
+  assert.ok(nextState.unlockedAchievementIds.includes('first-incorporation'));
+
+  // 既に解除済みの状態からadvanceTurnしても再度は解除されない
+  const second = advanceTurn(nextState, context, [], () => 1);
+  assert.equal(second.unlockedAchievements.some((a) => a.id === 'first-incorporation'), false);
+});
+
+test('advanceTurn: クリア条件(HD化+IPO+店舗数20以上)を満たすとisVictoryAchievedがtrueで固定される', () => {
+  const stores = Array.from({ length: 20 }, (_, i) => ({
+    id: `store-${i}`,
+    propertyId: 'prop-1',
+    name: `store-${i}`,
+    equipment: [],
+    menu: [makeMenuItem()],
+    employeeIds: [],
+    openedAtTurn: 0,
+    cumulativeCustomerSatisfaction: 60,
+    operatingHours: { open: 7, close: 21 },
+  }));
+  const state = makeState({
+    entityType: 'holding',
+    stores,
+    stock: { isPublic: true, sharePrice: 500, totalShares: 100_000, publicFloatShares: 30_000, dividendPerSharePerTurn: 0 },
+  });
+  const { nextState } = advanceTurn(state, context, [], () => 1);
+  assert.equal(nextState.isVictoryAchieved, true);
+
+  // 店舗が減って条件を割ってもtrueのまま固定される
+  const shrunkState = { ...nextState, stores: [stores[0]] };
+  const { nextState: nextAfterShrink } = advanceTurn(shrunkState, context, [], () => 1);
+  assert.equal(nextAfterShrink.isVictoryAchieved, true);
 });

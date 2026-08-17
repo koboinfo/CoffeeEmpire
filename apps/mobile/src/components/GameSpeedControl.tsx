@@ -19,11 +19,22 @@ export function GameSpeedControl() {
     try {
       for (let i = 0; i < speed; i += 1) {
         await advance();
-        // 決算・イベント通知はプレイヤーが確認するまで、バッチ内の残りターンは進めない
-        // (先に進めてしまうと latestSettlement/latestTriggeredEvents が次ターンの結果で
-        // 上書きされ、モーダルが一度も表示されないまま消えてしまうため)。
-        const { latestSettlement, latestTriggeredEvents, latestTriggeredStoreEvents } = useGameStore.getState();
-        if (latestSettlement || latestTriggeredEvents.length > 0 || latestTriggeredStoreEvents.length > 0) {
+        // 決算・イベント・実績解除の通知はプレイヤーが確認するまで、バッチ内の残りターンは
+        // 進めない(先に進めてしまうと latestSettlement/latestTriggeredEvents/
+        // latestUnlockedAchievements が次ターンの結果で上書きされ、モーダルが一度も表示
+        // されないまま消えてしまうため)。isBankruptはadvance()自体が早期returnするので、
+        // これ以上ターンを重ねる意味がないためここでも止める
+        // (isVictoryAchievedは一度trueになったら永続する値でありadvance()を止める必要が
+        // ないため対象外。VictoryScreenはstate.isVictoryAchievedを見て常にオーバーレイ表示される)。
+        const { latestSettlement, latestTriggeredEvents, latestTriggeredStoreEvents, latestUnlockedAchievements, state: latestState } =
+          useGameStore.getState();
+        if (
+          latestSettlement ||
+          latestTriggeredEvents.length > 0 ||
+          latestTriggeredStoreEvents.length > 0 ||
+          latestUnlockedAchievements.length > 0 ||
+          latestState.isBankrupt
+        ) {
           break;
         }
       }

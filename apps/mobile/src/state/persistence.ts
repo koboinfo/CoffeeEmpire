@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CoffeeEmpireState } from '@coffee-empire/core';
 
-// v1→v2: Phase5で entityType・fiscalPeriod 等の必須フィールドを追加したため、
+// v1→v2: Phase5で entityType・fiscalPeriod 等の必須フィールドを追加。
+// v2→v3: Phase6で isVictoryAchieved・unlockedAchievementIds を追加。
 // 型形状が変わった旧セーブを読み込ませないようキーをローテーションする(移行は行わない)。
-const STORAGE_KEY = 'coffee-empire/save-v2';
+const STORAGE_KEY = 'coffee-empire/save-v3';
 
 export async function saveState(state: CoffeeEmpireState): Promise<void> {
   try {
@@ -40,6 +41,27 @@ export async function loadState(): Promise<CoffeeEmpireState | null> {
   } catch (error) {
     console.warn('[persistence] failed to load state', error);
     return null;
+  }
+}
+
+// ゲームの保存データ(v3)とは別枠のキー。resetGame()のclearState()で消えるべきではない
+// (黒字倒産後に再スタートしてもチュートリアルを毎回出す必要はないため)。
+const ONBOARDING_SEEN_KEY = 'coffee-empire/onboarding-seen-v1';
+
+export async function hasSeenOnboarding(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(ONBOARDING_SEEN_KEY)) === 'true';
+  } catch (error) {
+    console.warn('[persistence] failed to read onboarding flag', error);
+    return false;
+  }
+}
+
+export async function markOnboardingSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, 'true');
+  } catch (error) {
+    console.warn('[persistence] failed to write onboarding flag', error);
   }
 }
 

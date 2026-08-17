@@ -27,6 +27,9 @@ import { calculateCompetitivePressure, simulateCompetitorTurn } from './competit
 import { calculateResearchEffects } from './research.js';
 import { calculateOwnedFarmHarvest } from './supplyChain.js';
 import { calculateEmployerSocialInsurance, calculateAnnualSettlement } from './taxes.js';
+import { evaluateNewAchievements } from './achievements.js';
+import { checkVictoryCondition } from './gameOutcome.js';
+import { achievements, type AchievementDefinition } from '../data/achievements.js';
 
 /** 決算(年1回)の間隔。turnUnitが'month'固定のため12ターン=1年とする。 */
 export const SETTLEMENT_INTERVAL_TURNS = 12;
@@ -54,6 +57,7 @@ export interface AdvanceTurnResult {
   settlement?: SettlementResult; // 決算ターン(SETTLEMENT_INTERVAL_TURNSごと)のみ設定される
   plItems: PLLineItem[];
   eventCashEffect: number;
+  unlockedAchievements: AchievementDefinition[]; // このターンで新たに解除された実績(報酬は既にnextState.cashへ加算済み)
 }
 
 /**
@@ -390,7 +394,7 @@ export function advanceTurn(
     return { ...employee, motivation: Math.min(100, Math.max(0, employee.motivation + delta)) };
   });
 
-  const nextState: CoffeeEmpireState = {
+  const provisionalNextState: CoffeeEmpireState = {
     ...statusState,
     activeCampaigns,
     cash: cashFlowStatement.endingCash,
@@ -406,6 +410,22 @@ export function advanceTurn(
     isBankrupt: state.isBankrupt || cashFlowStatement.endingCash < 0,
   };
 
+  // 実績(マイルストーン)判定: 新規解除分のみ報酬(cash)を加算し、達成済みIDに積み増す。
+  const unlockedAchievements = evaluateNewAchievements(
+    { state: provisionalNextState, latestIncomeStatement: incomeStatement },
+    achievements,
+    state.unlockedAchievementIds
+  );
+  const achievementRewardCash = unlockedAchievements.reduce((sum, achievement) => sum + achievement.rewardCash, 0);
+
+  const nextState: CoffeeEmpireState = {
+    ...provisionalNextState,
+    cash: provisionalNextState.cash + achievementRewardCash,
+    unlockedAchievementIds: [...state.unlockedAchievementIds, ...unlockedAchievements.map((achievement) => achievement.id)],
+    // クリア条件(checkVictoryCondition)を一度満たしたらtrueで固定する(isBankruptと同じ方式)。
+    isVictoryAchieved: state.isVictoryAchieved || checkVictoryCondition(provisionalNextState),
+  };
+
   return {
     nextState,
     incomeStatement,
@@ -417,5 +437,6 @@ export function advanceTurn(
     storeReports,
     plItems,
     eventCashEffect,
+    unlockedAchievements,
   };
 }

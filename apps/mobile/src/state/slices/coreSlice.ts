@@ -8,6 +8,7 @@ import {
   marketingCampaignPresets,
   researchTree,
   storeEvents,
+  type AchievementDefinition,
   type BalanceSheet,
   type CashFlowStatement,
   type CoffeeEmpireState,
@@ -47,6 +48,9 @@ export interface CoreSlice {
   latestSettlement: SettlementResult | null;
   latestPLItems: PLLineItem[];
   latestEventCashEffect: number;
+  latestUnlockedAchievements: AchievementDefinition[];
+  /** クリア演出(VictoryScreen)を「続けてプレイする」で閉じたかどうか。ゲームには保存されない一時的なUI状態。 */
+  victoryScreenDismissed: boolean;
   isHydrated: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
@@ -54,6 +58,8 @@ export interface CoreSlice {
   dismissError: () => void;
   dismissTriggeredEvents: () => void;
   dismissSettlement: () => void;
+  dismissUnlockedAchievements: () => void;
+  dismissVictoryScreen: () => void;
   resetGame: () => Promise<void>;
 }
 
@@ -70,6 +76,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   latestSettlement: null,
   latestPLItems: [],
   latestEventCashEffect: 0,
+  latestUnlockedAchievements: [],
+  victoryScreenDismissed: false,
   isHydrated: false,
   error: null,
 
@@ -94,6 +102,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         settlement,
         plItems,
         eventCashEffect,
+        unlockedAchievements,
       } = advanceTurn(
         state,
         turnContext,
@@ -148,6 +157,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         latestSettlement: settlement ?? null,
         latestPLItems: plItems,
         latestEventCashEffect: eventCashEffect,
+        latestUnlockedAchievements: unlockedAchievements,
         error: null,
       });
       await saveState(updatedState);
@@ -162,6 +172,10 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   dismissTriggeredEvents: () => set({ latestTriggeredEvents: [], latestTriggeredStoreEvents: [] }),
 
   dismissSettlement: () => set({ latestSettlement: null }),
+
+  dismissUnlockedAchievements: () => set({ latestUnlockedAchievements: [] }),
+
+  dismissVictoryScreen: () => set({ victoryScreenDismissed: true }),
 
   /** 黒字倒産(isBankrupt)後、新しい会社としてゲームを再スタートするための保存データ破棄+初期化。 */
   resetGame: async () => {
@@ -178,6 +192,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
       latestSettlement: null,
       latestPLItems: [],
       latestEventCashEffect: 0,
+      latestUnlockedAchievements: [],
+      victoryScreenDismissed: false,
       error: null,
     });
   },

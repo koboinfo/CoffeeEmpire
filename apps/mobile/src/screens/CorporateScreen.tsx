@@ -7,6 +7,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Gauge } from '../components/Gauge';
 import { LineChart } from '../components/LineChart';
 import {
+  achievements,
   calculateAcquisitionPrice,
   calculateDepartmentUpgradeCost,
   calculateMarketShareRatio,
@@ -70,7 +71,7 @@ const LOAN_PRESETS = [
 
 const HQ_UPGRADE_COST_PER_TIER = 800_000;
 
-type DepartmentTabKey = 'org' | 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research';
+type DepartmentTabKey = 'org' | 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research' | 'achievements';
 
 const TABS: { key: DepartmentTabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'org', label: '組織', icon: 'ribbon' },
@@ -81,6 +82,7 @@ const TABS: { key: DepartmentTabKey; label: string; icon: keyof typeof Ionicons.
   { key: 'loans', label: '融資', icon: 'cash' },
   { key: 'ma', label: 'M&A', icon: 'git-merge' },
   { key: 'research', label: '研究', icon: 'flask' },
+  { key: 'achievements', label: '実績', icon: 'trophy' },
 ];
 
 const RESEARCH_BRANCH_LABELS: Record<ResearchBranch, string> = {
@@ -674,6 +676,34 @@ export function CorporateScreen() {
             </CardBox>
           ))}
         </>
+      ) : null}
+
+      {activeDept === 'achievements' ? (
+        <CardBox>
+          <SectionLabel icon="trophy" label={`経営マイルストーン(${state.unlockedAchievementIds.length}/${achievements.length}達成)`} />
+          {achievements.map((achievement, index) => {
+            const unlocked = state.unlockedAchievementIds.includes(achievement.id);
+            return (
+              <View key={achievement.id} className={`flex-row items-center gap-sm py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                <View
+                  className="h-9 w-9 items-center justify-center rounded-full"
+                  style={{ backgroundColor: unlocked ? 'rgba(232,162,61,0.22)' : 'rgba(255,255,255,0.06)' }}
+                >
+                  <Ionicons name="trophy" size={18} color={unlocked ? colors.gold : colors.textMuted} />
+                </View>
+                <View className="flex-1 gap-[2px]">
+                  <Text className={`text-sm font-bold ${unlocked ? 'text-text-primary' : 'text-text-muted'}`}>
+                    {achievement.label}
+                  </Text>
+                  <Text className="text-xs text-text-muted">{achievement.description}</Text>
+                </View>
+                <Text className="text-xs font-semibold" style={{ color: unlocked ? colors.positive : colors.textMuted }}>
+                  {unlocked ? '達成済み' : `+${formatCurrency(achievement.rewardCash)}`}
+                </Text>
+              </View>
+            );
+          })}
+        </CardBox>
       ) : null}
       </View>
     </ScrollView>

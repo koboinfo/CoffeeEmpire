@@ -22,6 +22,8 @@ function makeState(overrides: Partial<CoffeeEmpireState> = {}): CoffeeEmpireStat
     entityStatus: {},
     fiscalPeriod: { accumulatedPretaxIncome: 2_000_000 },
     isBankrupt: false,
+    isVictoryAchieved: false,
+    unlockedAchievementIds: [],
     stores: [],
     employees: [],
     greenBeanInventory: [],

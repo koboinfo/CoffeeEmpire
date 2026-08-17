@@ -48,6 +48,8 @@ export function createInitialState(): CoffeeEmpireState {
     entityStatus: {},
     fiscalPeriod: { accumulatedPretaxIncome: 0 },
     isBankrupt: false,
+    isVictoryAchieved: false,
+    unlockedAchievementIds: [],
     stores: sampleStores,
     employees: [],
     greenBeanInventory: [],

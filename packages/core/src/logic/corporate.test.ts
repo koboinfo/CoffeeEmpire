@@ -129,6 +129,8 @@ function makeAutomationState(overrides: Partial<CoffeeEmpireState> = {}): Coffee
     entityStatus: {},
     fiscalPeriod: { accumulatedPretaxIncome: 0 },
     isBankrupt: false,
+    isVictoryAchieved: false,
+    unlockedAchievementIds: [],
     stores: [],
     employees: [],
     greenBeanInventory: [],
