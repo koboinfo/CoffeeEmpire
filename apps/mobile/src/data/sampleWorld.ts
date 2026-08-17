@@ -1,4 +1,11 @@
-import { cities, type Property, type Store, type MenuItem, type CoffeeEmpireState } from '@coffee-empire/core';
+import {
+  cities,
+  defaultTaxRule,
+  type Property,
+  type Store,
+  type MenuItem,
+  type CoffeeEmpireState,
+} from '@coffee-empire/core';
 
 const tokyo = cities.find((city) => city.id === 'city-tokyo');
 if (!tokyo) {
@@ -37,6 +44,10 @@ export function createInitialState(): CoffeeEmpireState {
       employeeMorale: { key: 'employeeMorale', value: 60, min: 0, max: 100 },
     },
     cash: 10_000_000,
+    entityType: 'soleProprietorship',
+    entityStatus: {},
+    fiscalPeriod: { accumulatedPretaxIncome: 0 },
+    isBankrupt: false,
     stores: sampleStores,
     employees: [],
     greenBeanInventory: [],
@@ -58,10 +69,17 @@ export function createInitialState(): CoffeeEmpireState {
       },
     ],
     acquisitions: [],
-    taxRule: { corporateTaxRate: 0.3 },
+    taxRule: defaultTaxRule,
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
-    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [], stockPrices: [], newsFeed: [] },
+    history: {
+      incomeStatements: [],
+      balanceSheets: [],
+      cashFlowStatements: [],
+      stockPrices: [],
+      newsFeed: [],
+      settlements: [],
+    },
   };
 }

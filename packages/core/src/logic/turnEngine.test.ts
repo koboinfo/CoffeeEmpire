@@ -5,7 +5,8 @@ import type { GreenBeanLot } from '../types/supplyChain.js';
 import type { MarketingCampaign, RealEstateInvestment } from '../types/corporate.js';
 import type { CoffeeEmpireState, SimEvent } from '../types/simState.js';
 import type { StoreEventDefinition } from '../types/storeEvents.js';
-import { advanceTurn } from './turnEngine.js';
+import { advanceTurn, SETTLEMENT_INTERVAL_TURNS } from './turnEngine.js';
+import { defaultTaxRule } from '../data/taxConstants.js';
 
 function makeMenuItem(overrides: Partial<MenuItem> = {}): MenuItem {
   return {
@@ -42,6 +43,10 @@ function makeState(overrides: Partial<CoffeeEmpireState> = {}): CoffeeEmpireStat
       brandAwareness: { key: 'brandAwareness', value: 50, min: 0, max: 100 },
     },
     cash: 10000,
+    entityType: 'corporation',
+    entityStatus: {},
+    fiscalPeriod: { accumulatedPretaxIncome: 0 },
+    isBankrupt: false,
     stores: [makeStore()],
     employees: [],
     greenBeanInventory: [],
@@ -53,11 +58,18 @@ function makeState(overrides: Partial<CoffeeEmpireState> = {}): CoffeeEmpireStat
     ownedRealEstate: [],
     competitorBrands: [],
     acquisitions: [],
-    taxRule: { corporateTaxRate: 0.3 },
+    taxRule: defaultTaxRule,
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
-    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [], stockPrices: [], newsFeed: [] },
+    history: {
+      incomeStatements: [],
+      balanceSheets: [],
+      cashFlowStatements: [],
+      stockPrices: [],
+      newsFeed: [],
+      settlements: [],
+    },
     ...overrides,
   };
 }
@@ -473,4 +485,75 @@ test('advanceTurn: viral-buzz型の店舗イベントは当ターンの売上を
   const withBuzz = advanceTurn(state, context, [], () => 0, 0, [], [], storeEventDefinitions);
 
   assert.ok(withBuzz.incomeStatement.revenue > withoutBuzz.incomeStatement.revenue);
+});
+
+test('advanceTurn: 決算ターン以外はcorporateTaxが0で、税引前利益がfiscalPeriodに累積される', () => {
+  const state = makeState({ turn: 0, fiscalPeriod: { accumulatedPretaxIncome: 500 } });
+  const { nextState, incomeStatement, settlement } = advanceTurn(state, context, [], () => 1);
+
+  assert.equal(incomeStatement.corporateTax, 0);
+  assert.equal(settlement, undefined);
+  assert.equal(nextState.fiscalPeriod.accumulatedPretaxIncome, 500 + incomeStatement.pretaxIncome);
+});
+
+test(`advanceTurn: ${SETTLEMENT_INTERVAL_TURNS}の倍数ターンで決算が発生し、累計利益に対して一括課税されfiscalPeriodがリセットされる`, () => {
+  const state = makeState({
+    turn: SETTLEMENT_INTERVAL_TURNS - 1,
+    entityType: 'corporation',
+    cash: 100_000_000,
+    fiscalPeriod: { accumulatedPretaxIncome: 9_000_000 },
+  });
+  const { nextState, incomeStatement, settlement } = advanceTurn(state, context, [], () => 1);
+
+  assert.ok(settlement);
+  assert.equal(settlement!.turn, SETTLEMENT_INTERVAL_TURNS);
+  assert.ok(settlement!.totalTaxDue > 0);
+  assert.equal(incomeStatement.corporateTax, settlement!.totalTaxDue);
+  assert.equal(nextState.fiscalPeriod.accumulatedPretaxIncome, 0);
+});
+
+test('advanceTurn: 法人は赤字決算でも法人住民税均等割が発生する', () => {
+  const state = makeState({
+    turn: SETTLEMENT_INTERVAL_TURNS - 1,
+    entityType: 'corporation',
+    stores: [],
+    cash: 1_000_000,
+    fiscalPeriod: { accumulatedPretaxIncome: -3_000_000 },
+  });
+  const { settlement } = advanceTurn(state, context, [], () => 1);
+
+  assert.ok(settlement);
+  assert.equal(settlement!.breakdown.corporateInhabitantTaxMinimum, 70_000);
+  assert.equal(settlement!.totalTaxDue, 70_000);
+});
+
+test('advanceTurn: 法人成り後は給与総額に社会保険料(事業主負担)が加算される', () => {
+  const employees = [
+    {
+      id: 'emp-1',
+      name: 'Barista',
+      role: 'barista' as const,
+      skillLevel: 50,
+      salaryPerMonth: 200_000,
+      motivation: 80,
+      hiredAtTurn: 0,
+    },
+  ];
+  const soleProp = advanceTurn(makeState({ entityType: 'soleProprietorship', employees }), context, [], () => 1);
+  const corp = advanceTurn(makeState({ entityType: 'corporation', employees }), context, [], () => 1);
+
+  assert.ok(corp.incomeStatement.operatingExpenses > soleProp.incomeStatement.operatingExpenses);
+});
+
+test('advanceTurn: 決算での一括納税でcashがマイナスになると黒字倒産(isBankrupt)になる', () => {
+  const state = makeState({
+    turn: SETTLEMENT_INTERVAL_TURNS - 1,
+    entityType: 'corporation',
+    cash: 100_000, // 決算納税額を大きく下回るギリギリの手元資金
+    fiscalPeriod: { accumulatedPretaxIncome: 50_000_000 },
+  });
+  const { nextState, settlement } = advanceTurn(state, context, [], () => 1);
+
+  assert.ok(settlement!.totalTaxDue > state.cash);
+  assert.equal(nextState.isBankrupt, true);
 });

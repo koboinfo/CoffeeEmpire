@@ -1,7 +1,7 @@
 import type { Property, City } from '../types/store.js';
 import type { Farm, GreenBeanLot } from '../types/supplyChain.js';
 import type { CoffeeEmpireState, PLLineItem, SimEvent } from '../types/simState.js';
-import type { IncomeStatement, BalanceSheet, CashFlowStatement } from '../types/finance.js';
+import type { IncomeStatement, BalanceSheet, CashFlowStatement, SettlementResult } from '../types/finance.js';
 import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.js';
 import type { ResearchNodeDefinition } from '../types/research.js';
 import type { StoreEventDefinition, TriggeredStoreEvent } from '../types/storeEvents.js';
@@ -9,7 +9,7 @@ import {
   calculateStoreRevenue,
   calculateInteriorQualityFactor,
   calculatePayroll,
-  buildIncomeStatement,
+  buildIncomeStatementWithTax,
   calculateStoresDepreciationAndNetBookValue,
   calculateInventoryValue,
   buildBalanceSheet,
@@ -26,6 +26,10 @@ import { serviceLoans } from './loans.js';
 import { calculateCompetitivePressure, simulateCompetitorTurn } from './competitorAI.js';
 import { calculateResearchEffects } from './research.js';
 import { calculateOwnedFarmHarvest } from './supplyChain.js';
+import { calculateEmployerSocialInsurance, calculateAnnualSettlement } from './taxes.js';
+
+/** 決算(年1回)の間隔。turnUnitが'month'固定のため12ターン=1年とする。 */
+export const SETTLEMENT_INTERVAL_TURNS = 12;
 
 export interface TurnContext {
   properties: Record<string, Property>;
@@ -47,6 +51,7 @@ export interface AdvanceTurnResult {
   triggeredEvents: SimEvent[];
   triggeredStoreEvents: TriggeredStoreEvent[];
   storeReports: Record<string, StoreReport>;
+  settlement?: SettlementResult; // 決算ターン(SETTLEMENT_INTERVAL_TURNSごと)のみ設定される
 }
 
 /**
@@ -204,6 +209,18 @@ export function advanceTurn(
     plItems.push({ key: 'payroll', label: '人件費', amount: payroll, kind: 'fixedCost' });
   }
 
+  // 社会保険料(健康保険・厚生年金)の事業主負担。法人成り後、給与総額に連動して
+  // 毎月確実にキャッシュを圧迫する固定費として発生する(個人事業主段階では対象外)。
+  if (state.entityType !== 'soleProprietorship' && payroll > 0) {
+    const employerSocialInsurance = calculateEmployerSocialInsurance(payroll, state.taxRule);
+    plItems.push({
+      key: 'employerSocialInsurance',
+      label: '社会保険料(事業主負担)',
+      amount: employerSocialInsurance,
+      kind: 'fixedCost',
+    });
+  }
+
   for (const campaign of state.activeCampaigns) {
     plItems.push({
       key: `marketing:${campaign.id}`,
@@ -228,13 +245,49 @@ export function advanceTurn(
     nextTurn
   );
   const loanServicing = serviceLoans(state.loans);
-  const incomeStatement = buildIncomeStatement(
+
+  // 税金は毎月のPLでは計上しない(月次のcorporateTax=0)。決算ターン(年1回)まで
+  // 税引前利益を累積し、決算月にまとめて一括で課税・引き落とすことで「黒字倒産」
+  // (帳簿上は黒字でも納税タイミングでキャッシュが枯渇するリスク)を再現する。
+  const provisionalIncomeStatement = buildIncomeStatementWithTax(
     nextTurn,
     plItems,
     totalMonthlyDepreciation,
     loanServicing.totalInterestExpense,
-    state.taxRule
+    0
   );
+  const accumulatedPretaxIncome = state.fiscalPeriod.accumulatedPretaxIncome + provisionalIncomeStatement.pretaxIncome;
+  const isSettlementTurn = nextTurn % SETTLEMENT_INTERVAL_TURNS === 0;
+
+  let incomeStatement = provisionalIncomeStatement;
+  let settlement: SettlementResult | undefined;
+  let nextAccumulatedPretaxIncome = accumulatedPretaxIncome;
+
+  if (isSettlementTurn) {
+    // 直近12ヶ月(当月含む)の売上高。消費税課税事業者判定(基準期間の簡略化)に使う。
+    const priorRevenues = state.history.incomeStatements
+      .slice(-(SETTLEMENT_INTERVAL_TURNS - 1))
+      .map((statement) => statement.revenue);
+    const trailing12MonthRevenue =
+      provisionalIncomeStatement.revenue + priorRevenues.reduce((sum, revenue) => sum + revenue, 0);
+
+    settlement = calculateAnnualSettlement({
+      turn: nextTurn,
+      entityType: state.entityType,
+      accumulatedPretaxIncome,
+      trailing12MonthRevenue,
+      taxRule: state.taxRule,
+    });
+
+    incomeStatement = buildIncomeStatementWithTax(
+      nextTurn,
+      plItems,
+      totalMonthlyDepreciation,
+      loanServicing.totalInterestExpense,
+      settlement.totalTaxDue
+    );
+    nextAccumulatedPretaxIncome = 0;
+  }
 
   const triggeredEvents = rollEvents(events, state, rng);
   const resolvedCompanyEffects = triggeredEvents.map((event) => resolveEventEffect(event.id, event.effect, rng));
@@ -346,6 +399,9 @@ export function advanceTurn(
     ownedFarms: ownedFarmsAfterHarvest,
     stores: storesAfterEvents,
     employees: employeesAfterEvents,
+    fiscalPeriod: { accumulatedPretaxIncome: nextAccumulatedPretaxIncome },
+    // 黒字倒産: 決算での一括納税等でcashが一度でもマイナスになったらtrueのまま固定する。
+    isBankrupt: state.isBankrupt || cashFlowStatement.endingCash < 0,
   };
 
   return {
@@ -353,6 +409,7 @@ export function advanceTurn(
     incomeStatement,
     balanceSheet,
     cashFlowStatement,
+    settlement,
     triggeredEvents,
     triggeredStoreEvents,
     storeReports,

@@ -10,8 +10,10 @@ import type {
   Acquisition,
   ExecutiveAutomation,
   Loan,
+  EntityType,
+  EntityStatus,
 } from './corporate.js';
-import type { TaxRule, IncomeStatement, BalanceSheet, CashFlowStatement } from './finance.js';
+import type { TaxRule, IncomeStatement, BalanceSheet, CashFlowStatement, SettlementResult } from './finance.js';
 
 /**
  * 基盤④(Sim Core Engine)のAPI概形(~/CoreEngines/core/04-sim-core/README.md)に準拠。
@@ -54,7 +56,16 @@ export interface SimEvent<TEffect = Record<string, number>> {
  * - avgQuality: 提供品質の平均 0-100
  * - employeeMorale: 従業員モチベーションの平均 0-100
  */
+/** 決算(年1回)までの累計税引前利益。決算ターンで清算されゼロに戻る。 */
+export interface FiscalPeriodState {
+  accumulatedPretaxIncome: number;
+}
+
 export interface CoffeeEmpireState extends SimState {
+  entityType: EntityType;
+  entityStatus: EntityStatus;
+  fiscalPeriod: FiscalPeriodState;
+  isBankrupt: boolean; // 決算等でcashが一度でもマイナスになったら黒字倒産としてtrueになる(以後復帰しない)
   stores: Store[];
   employees: Employee[];
   greenBeanInventory: GreenBeanLot[];
@@ -77,6 +88,7 @@ export interface CoffeeEmpireState extends SimState {
     cashFlowStatements: CashFlowStatement[];
     stockPrices: StockPricePoint[];
     newsFeed: NewsFeedEntry[];
+    settlements: SettlementResult[];
   };
 }
 

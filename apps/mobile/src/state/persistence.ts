@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CoffeeEmpireState } from '@coffee-empire/core';
 
-const STORAGE_KEY = 'coffee-empire/save-v1';
+// v1→v2: Phase5で entityType・fiscalPeriod 等の必須フィールドを追加したため、
+// 型形状が変わった旧セーブを読み込ませないようキーをローテーションする(移行は行わない)。
+const STORAGE_KEY = 'coffee-empire/save-v2';
 
 export async function saveState(state: CoffeeEmpireState): Promise<void> {
   try {
@@ -39,6 +41,7 @@ function isCoffeeEmpireStateShape(value: unknown): value is CoffeeEmpireState {
     typeof candidate.turn === 'number' &&
     typeof candidate.cash === 'number' &&
     Array.isArray(candidate.stores) &&
-    typeof candidate.statuses === 'object'
+    typeof candidate.statuses === 'object' &&
+    typeof candidate.entityType === 'string'
   );
 }

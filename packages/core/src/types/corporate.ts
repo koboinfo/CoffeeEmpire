@@ -1,5 +1,17 @@
 export type DepartmentType = 'it' | 'marketing' | 'hr' | 'finance';
 
+/**
+ * 企業成長ステージ。soleProprietorship(個人事業主)→corporation(株式会社)→holding(HD化)の順に
+ * 一方向へのみ遷移する(降格は無い)。IPO(株式公開)自体はcorporation/holding到達後に
+ * 既存のStockListingで扱う(別軸のフラグのため、entityTypeには含めない)。
+ */
+export type EntityType = 'soleProprietorship' | 'corporation' | 'holding';
+
+export interface EntityStatus {
+  incorporatedAtTurn?: number; // 法人成りしたターン(個人事業主のままなら未設定)
+  holdingEstablishedAtTurn?: number; // HD体制へ移行したターン
+}
+
 export interface HeadquartersOffice {
   id: string;
   cityId: string;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { Store, Property, City, MenuItem, Equipment } from '../types/store.js';
 import type { Farm, GreenBeanLot } from '../types/supplyChain.js';
 import type { PLLineItem } from '../types/simState.js';
+import { defaultTaxRule } from '../data/taxConstants.js';
 import {
   calculateStoreRevenue,
   calculateInteriorQualityFactor,
@@ -123,8 +124,8 @@ test('calculatePL: 基盤④README準拠でrevenue/costs/profitを返す', () =>
 });
 
 test('calculateTax: 赤字時は非課税', () => {
-  assert.equal(calculateTax(-100, { corporateTaxRate: 0.3 }), 0);
-  assert.equal(calculateTax(1000, { corporateTaxRate: 0.3 }), 300);
+  assert.equal(calculateTax(-100, { ...defaultTaxRule, corporateTaxRate: 0.3 }), 0);
+  assert.equal(calculateTax(1000, { ...defaultTaxRule, corporateTaxRate: 0.3 }), 300);
 });
 
 test('buildIncomeStatement: 減価償却・法人税を反映した純利益を計算する', () => {
@@ -133,7 +134,7 @@ test('buildIncomeStatement: 減価償却・法人税を反映した純利益を�
     { key: 'c1', label: 'COGS', amount: 3000, kind: 'variableCost' },
     { key: 'c2', label: 'Opex', amount: 2000, kind: 'fixedCost' },
   ];
-  const statement = buildIncomeStatement(1, items, 500, 100, { corporateTaxRate: 0.3 });
+  const statement = buildIncomeStatement(1, items, 500, 100, { ...defaultTaxRule, corporateTaxRate: 0.3 });
 
   assert.equal(statement.revenue, 10000);
   assert.equal(statement.costOfGoodsSold, 3000);

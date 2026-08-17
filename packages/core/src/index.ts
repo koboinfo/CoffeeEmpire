@@ -20,6 +20,8 @@ export * from './logic/loans.js';
 export * from './logic/research.js';
 export * from './logic/storeEvents.js';
 export * from './logic/seasonality.js';
+export * from './logic/taxes.js';
+export * from './logic/incorporation.js';
 
 export * from './data/cities.js';
 export * from './data/farms.js';
@@ -29,3 +31,4 @@ export * from './data/storeEvents.js';
 export * from './data/equipmentCatalog.js';
 export * from './data/marketingCampaignPresets.js';
 export * from './data/researchTree.js';
+export * from './data/taxConstants.js';

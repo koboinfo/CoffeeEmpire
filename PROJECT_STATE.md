@@ -144,3 +144,27 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - `packages/core`のテストを149件に拡充(既存の金額前提を新数値に更新+新規ロジックのテスト18件追加)、全パス
 - `npm run typecheck`全ワークスペースでエラーなし
 - 初期資金¥10,000,000・店舗1店(無人)で12ターン分のシミュレーションを実行し、月次現金が急激に破綻・高騰しないことを確認(月次純利益は概ね-20万円台〜+80万円台で推移、12ターン後も資金の大半が残存)
+
+## Phase 5(`packages/core`側は完了、`apps/mobile`側UIは未着手) — 法人化・ホールディングス・税制
+
+「本作を日本の税制・財務・組織形態の変化を学べる教材に昇華させる」という改修依頼への対応。企業成長ステージ(個人事業主→株式会社→HD)と、年1回決算での一括課税・黒字倒産リスクを`packages/core`に実装した。設計の詳細は`ARCHITECTURE.md`の「Phase5: 企業成長ステージ・税制エンジン」節を参照。
+
+### 実装した内容(`packages/core`)
+
+- `types/corporate.ts`: `EntityType`('soleProprietorship'|'corporation'|'holding')・`EntityStatus`(法人成り/HD化したターン)を追加。
+- `types/finance.ts`: `TaxRule`を大幅拡張(個人所得税の累進ブラケット・住民税・個人事業税・法人税の軽減税率二段階・法人住民税均等割・社会保険料率・消費税課税事業者の基準)。決算結果を表す`SettlementResult`を新設。
+- `types/simState.ts`: `CoffeeEmpireState`に`entityType`・`entityStatus`・`fiscalPeriod`(決算までの累計税引前利益)・`isBankrupt`を追加。`history.settlements`(決算記録の履歴)を追加。
+- `data/taxConstants.ts`(新規): 実際の日本の税制に概ね準拠した`defaultTaxRule`。
+- `logic/taxes.ts`(新規): 所得税(累進)・住民税・個人事業税・法人税(軽減税率)・法人住民税均等割・社会保険料事業主負担・消費税課税事業者判定・`calculateAnnualSettlement()`(決算の一括納税額算定)。
+- `logic/incorporation.ts`(新規): `incorporateCompany()`(法人成り、手続き費用¥1,000,000)・`establishHolding()`(HD化、店舗数10・都市数3・費用¥5,000,000が条件。ブランド概念が無いため店舗数/都市数を代理指標とする簡略化)。
+- `logic/financials.ts`: `buildIncomeStatementWithTax()`を追加(税額を外部から渡せる版。既存`buildIncomeStatement`とPL集計を共有)。
+- `logic/turnEngine.ts`: 毎月の課税をやめ、`SETTLEMENT_INTERVAL_TURNS`(=12ターン)ごとの決算で`fiscalPeriod.accumulatedPretaxIncome`に対して一括課税する方式に変更。法人成り後は給与総額に連動する社会保険料(事業主負担)を毎月の固定費として追加。決算の一括納税でcashがマイナスになったら`isBankrupt=true`(黒字倒産)。
+
+### 検証
+
+- `packages/core`のテストを179件に拡充(taxes.test.ts 15件・incorporation.test.ts 10件・turnEngine決算/社保/黒字倒産シナリオ5件を新規追加)、全パス。
+- スクリプトで「個人事業主12ターン運営→決算(累進課税)→法人成り→従業員雇用→法人として12ターン運営→決算(軽減税率法人税+均等割)」「現金わずかな状態で高額な累積利益を抱えて決算を迎え黒字倒産する」の両シナリオを実行し、期待通りの挙動を確認。
+
+### apps/mobile側は次回に持ち越し
+
+このセッション中、`apps/mobile`側で別セッションがイベント通知機能(`EventAlertModal.tsx`・`coreSlice.ts`の`latestTriggeredEvents`等)を並行して編集していたため、衝突を避けて`apps/mobile`のUI実装(組織形態タブ・法人成り/HD化ボタン・決算/黒字倒産の通知UI・HudBarのentityTypeバッジ)は見送った。`apps/mobile/src/data/sampleWorld.ts`(初期状態を`entityType: 'soleProprietorship'`に設定)と`apps/mobile/src/state/persistence.ts`(新しいstate形状に対応する保存キーのローテーション`save-v1`→`save-v2`)のみ、新しい型に対応させるため最小限修正済み。`npx tsc --noEmit`はこの時点でエラーなし。次回はまず`git status`で他セッションの状況を確認し、`corporateSlice.ts`に`incorporate`/`establishHolding`アクションを追加、`CorporateScreen.tsx`に組織タブを追加するところから再開する。

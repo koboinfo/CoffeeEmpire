@@ -90,13 +90,18 @@ export function calculateTax(pretaxIncome: number, taxRule: TaxRule): number {
   return Math.max(0, pretaxIncome) * taxRule.corporateTaxRate;
 }
 
-export function buildIncomeStatement(
-  turn: number,
-  items: PLLineItem[],
-  depreciation: number,
-  interestExpense: number,
-  taxRule: TaxRule
-): IncomeStatement {
+interface PretaxStatement {
+  revenue: number;
+  costOfGoodsSold: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  depreciation: number;
+  operatingIncome: number;
+  interestExpense: number;
+  pretaxIncome: number;
+}
+
+function buildPretaxStatement(items: PLLineItem[], depreciation: number, interestExpense: number): PretaxStatement {
   const revenue = items.filter((item) => item.kind === 'revenue').reduce((sum, item) => sum + item.amount, 0);
   const costOfGoodsSold = items
     .filter((item) => item.kind === 'variableCost')
@@ -108,11 +113,8 @@ export function buildIncomeStatement(
   const grossProfit = revenue - costOfGoodsSold;
   const operatingIncome = grossProfit - operatingExpenses - depreciation;
   const pretaxIncome = operatingIncome - interestExpense;
-  const corporateTax = calculateTax(pretaxIncome, taxRule);
-  const netIncome = pretaxIncome - corporateTax;
 
   return {
-    turn,
     revenue,
     costOfGoodsSold,
     grossProfit,
@@ -121,9 +123,40 @@ export function buildIncomeStatement(
     operatingIncome,
     interestExpense,
     pretaxIncome,
-    corporateTax,
-    netIncome,
   };
+}
+
+export function buildIncomeStatement(
+  turn: number,
+  items: PLLineItem[],
+  depreciation: number,
+  interestExpense: number,
+  taxRule: TaxRule
+): IncomeStatement {
+  const pretax = buildPretaxStatement(items, depreciation, interestExpense);
+  const corporateTax = calculateTax(pretax.pretaxIncome, taxRule);
+  const netIncome = pretax.pretaxIncome - corporateTax;
+
+  return { turn, ...pretax, corporateTax, netIncome };
+}
+
+/**
+ * buildIncomeStatementと同じPL集計を行うが、税額をtaxRuleから内部計算せず
+ * taxAmountとして直接受け取る。turnEngineの決算(年1回)課税で使う: 決算月以外は
+ * taxAmount=0(月次では課税しない)、決算月はcalculateAnnualSettlementの結果を渡す。
+ */
+export function buildIncomeStatementWithTax(
+  turn: number,
+  items: PLLineItem[],
+  depreciation: number,
+  interestExpense: number,
+  taxAmount: number
+): IncomeStatement {
+  const pretax = buildPretaxStatement(items, depreciation, interestExpense);
+  const corporateTax = Math.max(0, taxAmount);
+  const netIncome = pretax.pretaxIncome - corporateTax;
+
+  return { turn, ...pretax, corporateTax, netIncome };
 }
 
 export interface BalanceSheetInputs {

@@ -4,6 +4,7 @@ import type { HeadquartersOffice, CompetitorBrand } from '../types/corporate.js'
 import type { Property, City } from '../types/store.js';
 import type { CoffeeEmpireState } from '../types/simState.js';
 import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.js';
+import { defaultTaxRule } from '../data/taxConstants.js';
 import {
   upgradeHeadquarters,
   calculateAcquisitionPrice,
@@ -124,6 +125,10 @@ function makeAutomationState(overrides: Partial<CoffeeEmpireState> = {}): Coffee
     turnUnit: 'month',
     statuses: {},
     cash: 10_000_000,
+    entityType: 'corporation',
+    entityStatus: {},
+    fiscalPeriod: { accumulatedPretaxIncome: 0 },
+    isBankrupt: false,
     stores: [],
     employees: [],
     greenBeanInventory: [],
@@ -135,11 +140,18 @@ function makeAutomationState(overrides: Partial<CoffeeEmpireState> = {}): Coffee
     ownedRealEstate: [],
     competitorBrands: [],
     acquisitions: [],
-    taxRule: { corporateTaxRate: 0.3 },
+    taxRule: defaultTaxRule,
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
-    history: { incomeStatements: [], balanceSheets: [], cashFlowStatements: [], stockPrices: [], newsFeed: [] },
+    history: {
+      incomeStatements: [],
+      balanceSheets: [],
+      cashFlowStatements: [],
+      stockPrices: [],
+      newsFeed: [],
+      settlements: [],
+    },
     ...overrides,
   };
 }

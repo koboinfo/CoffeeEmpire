@@ -67,3 +67,35 @@ apps/mobile/src/state/
 ## テスト方針
 
 `packages/core`の新規関数は全て`node --test`でユニットテストを書く(既存76件→Phase2で100件に増加)。`advanceTurn`統合テストでは「融資の利息がP&Lに反映される」「上場中は黒字ターンで株価が上がる」等、複数モジュールの組み合わせ結果を検証する。UIコンポーネント側の自動テストは未整備(Phase1からの既知の未対応領域)。
+
+## Phase5: 企業成長ステージ・税制エンジン
+
+### entityType(企業成長ステージ)
+
+`CoffeeEmpireState.entityType: 'soleProprietorship' | 'corporation' | 'holding'`を単一の状態フィールドとして持ち、`soleProprietorship → corporation → holding`の一方向にのみ遷移する(降格なし)。IPO(`StockListing.isPublic`)は既存Phase1-2の実装をそのまま流用し、entityTypeとは別軸のフラグとして扱う(法人成り前でもUI上IPOボタン自体は隠さないが、`corporation`/`holding`到達を前提とした運用を想定)。
+
+`logic/incorporation.ts`が遷移ロジックを持つ:
+- `incorporateCompany(state)`: 個人事業主→株式会社。`INCORPORATION_COST`(手続き費用の概算)をcashから引き、`fiscalPeriod.accumulatedPretaxIncome`をリセットする(個人事業の累計所得と法人の決算期の損益を混同しないため)。
+- `establishHolding(state, distinctCityCount)`: 株式会社→HD。本アプリには店舗に「ブランド」概念が無いため、Stage3(マルチブランド)/Stage4(多店舗展開)は店舗数(`HOLDING_MIN_STORE_COUNT`=10)・出店都市数(`HOLDING_MIN_CITY_COUNT`=3)を代理指標として使う既知の簡略化。`distinctCityCount`はmobile層が`store.propertyId→Property.cityId`を解決して渡す(pure関数側でProperty解決を持たせないため)。
+
+### 決算(年1回)一括課税と黒字倒産
+
+Phase4までは毎月`buildIncomeStatement`が`taxRule.corporateTaxRate`の単一税率で毎ターン課税していたが、Phase5で「税金は年1回(`SETTLEMENT_INTERVAL_TURNS`=12ターン)の決算でまとめて一括徴収される」方式に変更した(黒字倒産リスクを再現するため)。
+
+- `financials.ts`に`buildIncomeStatementWithTax(turn, items, depreciation, interestExpense, taxAmount)`を追加。既存の`buildIncomeStatement`(taxRuleから内部で税額計算)とはPL集計ロジック(`buildPretaxStatement`)を共有しつつ、税額を外部から直接渡せるようにした。
+- `turnEngine.advanceTurn`は毎ターン`buildIncomeStatementWithTax(..., 0)`で仮のPL(`corporateTax=0`)を作り、`pretaxIncome`を`state.fiscalPeriod.accumulatedPretaxIncome`に積み上げる。
+- `nextTurn % SETTLEMENT_INTERVAL_TURNS === 0`の決算ターンでのみ`logic/taxes.ts`の`calculateAnnualSettlement()`で累計税引前利益に対する一括納税額を算定し、`buildIncomeStatementWithTax`を`taxAmount=settlement.totalTaxDue`で再計算し直す。この月のnetIncomeが一括で大きく落ち込み、`operatingCashFlow`経由でcashが一気に減る(黒字倒産の再現)。
+- `nextState.isBankrupt`は`cashFlowStatement.endingCash < 0`になった時点で`true`に固定される(以後の黒字化では戻らない)。ゲームオーバーUIは未実装(既知のギャップ、下記参照)。
+
+### 税目の内訳(`logic/taxes.ts` / `data/taxConstants.ts`)
+
+- 個人事業主(`entityType==='soleProprietorship'`): 所得税(`personalIncomeTaxBrackets`による累進課税、速算控除表ではなくブラケットごとの積み上げ計算)+住民税(フラット10%)+個人事業税(事業主控除290万円超過分に5%)。
+- 法人/HD: 法人税(中小企業軽減税率。課税所得800万円以下15%/超過分23.2%の二段階)+法人住民税均等割(`corporateInhabitantTaxMinimumPerYear`=年7万円。赤字でも必ず発生)。
+- 社会保険料(健康保険・厚生年金の事業主負担、概算15%)は決算とは別に、`entityType!=='soleProprietorship'`かつ給与総額>0の場合に毎月の固定費(PLItem)として発生する(個人事業主段階は対象外という簡略化)。
+- 消費税課税事業者判定(`isConsumptionTaxable`)は、本来の基準期間(前々事業年度)ではなく直近12ヶ月の売上高(`trailing12MonthRevenue`、`SettlementResult.isConsumptionTaxable`)で簡略判定する。判定結果は決算記録に残るのみで、消費税そのものの納税額計算には反映しない(価格モデルが税込前提のため)。
+
+### 既知のギャップ(Phase5時点。意図的な簡略化)
+
+- ゲームオーバー画面・ナビゲーションは未実装。`isBankrupt`フラグのみをstateに持たせている(mobile側でのUI表示は本セッションでは未着手)。
+- HD化(Stage3/4)は店舗数・都市数の代理指標のみで、真の意味でのマルチブランド管理(ブランドごとの損益・複数子会社のBS分離)は無い。
+- 消費税は課税事業者フラグの表示のみで、実際の納税額計算には組み込んでいない。
