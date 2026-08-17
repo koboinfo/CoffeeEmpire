@@ -3,7 +3,6 @@ import { View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { HudBar } from '../components/HudBar';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { FinancialsScreen } from '../screens/FinancialsScreen';
 import { MapScreen } from '../screens/MapScreen';
@@ -55,7 +54,6 @@ const TAB_LABELS: Record<keyof TabParamList, string> = {
 function TabNavigator() {
   return (
     <View style={styles.tabWrapper}>
-      <HudBar />
       <Tab.Navigator
         screenOptions={({ route }: { route: { name: keyof TabParamList } }) => ({
           headerShown: false,

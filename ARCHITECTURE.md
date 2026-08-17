@@ -94,8 +94,14 @@ Phase4までは毎月`buildIncomeStatement`が`taxRule.corporateTaxRate`の単�
 - 社会保険料(健康保険・厚生年金の事業主負担、概算15%)は決算とは別に、`entityType!=='soleProprietorship'`かつ給与総額>0の場合に毎月の固定費(PLItem)として発生する(個人事業主段階は対象外という簡略化)。
 - 消費税課税事業者判定(`isConsumptionTaxable`)は、本来の基準期間(前々事業年度)ではなく直近12ヶ月の売上高(`trailing12MonthRevenue`、`SettlementResult.isConsumptionTaxable`)で簡略判定する。判定結果は決算記録に残るのみで、消費税そのものの納税額計算には反映しない(価格モデルが税込前提のため)。
 
+### apps/mobile側の配線
+
+`state/slices/corporateSlice.ts`の`incorporate()`/`establishHoldingAction(distinctCityCount)`が`logic/incorporation.ts`をラップする。`distinctCityCount`はpure関数側にProperty解決を持たせない設計のため、`CorporateScreen.tsx`が`state.stores`+`properties`(`store.propertyId→Property.cityId`)から算出して渡す。
+
+決算・黒字倒産の通知は`coreSlice.ts`の`latestSettlement`(直近決算結果。`advance()`のたびに更新、`dismissSettlement()`で消去)と`state.isBankrupt`をUI側が購読する形で実現している。`components/SettlementModal.tsx`が前者を、`components/BankruptcyScreen.tsx`(全画面オーバーレイ+`resetGame()`ボタン)が後者を表示する。`coreSlice.advance()`は`isBankrupt`時に早期returnし、以後のターン進行を止める。
+
 ### 既知のギャップ(Phase5時点。意図的な簡略化)
 
-- ゲームオーバー画面・ナビゲーションは未実装。`isBankrupt`フラグのみをstateに持たせている(mobile側でのUI表示は本セッションでは未着手)。
 - HD化(Stage3/4)は店舗数・都市数の代理指標のみで、真の意味でのマルチブランド管理(ブランドごとの損益・複数子会社のBS分離)は無い。
 - 消費税は課税事業者フラグの表示のみで、実際の納税額計算には組み込んでいない。
+- `resetGame()`は保存データを`createInitialState()`へ丸ごと差し替えるのみで、過去のプレイ実績(決算履歴等)を残す「殿堂入り」のような機構は無い。

@@ -7,6 +7,8 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { HudBar } from './src/components/HudBar';
 import { EventAlertModal } from './src/components/EventAlertModal';
+import { SettlementModal } from './src/components/SettlementModal';
+import { BankruptcyScreen } from './src/components/BankruptcyScreen';
 import { useGameStore } from './src/state/gameStore';
 import { colors } from './src/theme/theme';
 
@@ -21,11 +23,13 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <View style={styles.root}>
-          <HudBar />
           <NavigationContainer>
+            <HudBar />
             <RootNavigator />
           </NavigationContainer>
           <EventAlertModal />
+          <SettlementModal />
+          <BankruptcyScreen />
         </View>
       </SafeAreaProvider>
     </ErrorBoundary>

@@ -13,13 +13,14 @@ import {
   type CoffeeEmpireState,
   type IncomeStatement,
   type Property,
+  type SettlementResult,
   type SimEvent,
   type StoreReport,
   type TriggeredStoreEvent,
   type TurnContext,
 } from '@coffee-empire/core';
 import { createInitialState, sampleProperties } from '../../data/sampleWorld';
-import { loadState, saveState } from '../persistence';
+import { clearState, loadState, saveState } from '../persistence';
 import type { GameStore } from '../gameStore';
 
 const MAX_HISTORY_TURNS = 60;
@@ -42,12 +43,15 @@ export interface CoreSlice {
   latestStoreReports: Record<string, StoreReport>;
   latestTriggeredEvents: SimEvent[];
   latestTriggeredStoreEvents: TriggeredStoreEvent[];
+  latestSettlement: SettlementResult | null;
   isHydrated: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
   advance: () => Promise<void>;
   dismissError: () => void;
   dismissTriggeredEvents: () => void;
+  dismissSettlement: () => void;
+  resetGame: () => Promise<void>;
 }
 
 export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set, get) => ({
@@ -60,6 +64,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   latestStoreReports: {},
   latestTriggeredEvents: [],
   latestTriggeredStoreEvents: [],
+  latestSettlement: null,
   isHydrated: false,
   error: null,
 
@@ -71,6 +76,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   advance: async () => {
     try {
       const { state, properties, pendingCapitalInjection } = get();
+      if (state.isBankrupt) return;
       const turnContext = buildTurnContext(properties);
       const {
         nextState,
@@ -132,6 +138,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         latestStoreReports: storeReports,
         latestTriggeredEvents: triggeredEvents,
         latestTriggeredStoreEvents: triggeredStoreEvents,
+        latestSettlement: settlement ?? null,
         error: null,
       });
       await saveState(updatedState);
@@ -144,4 +151,23 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   dismissError: () => set({ error: null }),
 
   dismissTriggeredEvents: () => set({ latestTriggeredEvents: [], latestTriggeredStoreEvents: [] }),
+
+  dismissSettlement: () => set({ latestSettlement: null }),
+
+  /** 黒字倒産(isBankrupt)後、新しい会社としてゲームを再スタートするための保存データ破棄+初期化。 */
+  resetGame: async () => {
+    await clearState();
+    set({
+      state: createInitialState(),
+      pendingCapitalInjection: 0,
+      latestIncomeStatement: null,
+      latestBalanceSheet: null,
+      latestCashFlowStatement: null,
+      latestStoreReports: {},
+      latestTriggeredEvents: [],
+      latestTriggeredStoreEvents: [],
+      latestSettlement: null,
+      error: null,
+    });
+  },
 });

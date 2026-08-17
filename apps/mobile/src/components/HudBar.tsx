@@ -13,6 +13,12 @@ type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 const BASE_YEAR = 2026;
 
+const ENTITY_TYPE_LABEL: Record<string, string> = {
+  soleProprietorship: '個人事業主',
+  corporation: '株式会社',
+  holding: 'ホールディングス',
+};
+
 function formatCurrency(amount: number): string {
   const rounded = Math.round(amount);
   const sign = rounded < 0 ? '-' : '';
@@ -68,6 +74,9 @@ export function HudBar() {
         <View style={styles.dateRow}>
           <Ionicons name="calendar-outline" size={15} color={colors.roastLight} />
           <Text style={styles.dateText}>{formatTurnDate(state.turn)}</Text>
+          <View style={styles.entityBadge}>
+            <Text style={styles.entityBadgeText}>{ENTITY_TYPE_LABEL[state.entityType] ?? state.entityType}</Text>
+          </View>
         </View>
         <View style={styles.rightRow}>
           <Pressable style={styles.bellButton} onPress={() => navigation.navigate('News')}>
@@ -112,6 +121,15 @@ const styles = StyleSheet.create({
   },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   dateText: { ...typography.label, color: colors.cream },
+  entityBadge: {
+    backgroundColor: colors.hudPill,
+    borderWidth: 1,
+    borderColor: colors.hudPillBorder,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  entityBadgeText: { fontSize: 10, fontWeight: '700', color: colors.roastLight },
   rightRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   bellButton: {
     width: 28,

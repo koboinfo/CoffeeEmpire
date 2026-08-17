@@ -145,7 +145,7 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - `npm run typecheck`全ワークスペースでエラーなし
 - 初期資金¥10,000,000・店舗1店(無人)で12ターン分のシミュレーションを実行し、月次現金が急激に破綻・高騰しないことを確認(月次純利益は概ね-20万円台〜+80万円台で推移、12ターン後も資金の大半が残存)
 
-## Phase 5(`packages/core`側は完了、`apps/mobile`側UIは未着手) — 法人化・ホールディングス・税制
+## Phase 5(完了) — 法人化・ホールディングス・税制
 
 「本作を日本の税制・財務・組織形態の変化を学べる教材に昇華させる」という改修依頼への対応。企業成長ステージ(個人事業主→株式会社→HD)と、年1回決算での一括課税・黒字倒産リスクを`packages/core`に実装した。設計の詳細は`ARCHITECTURE.md`の「Phase5: 企業成長ステージ・税制エンジン」節を参照。
 
@@ -165,6 +165,26 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - `packages/core`のテストを179件に拡充(taxes.test.ts 15件・incorporation.test.ts 10件・turnEngine決算/社保/黒字倒産シナリオ5件を新規追加)、全パス。
 - スクリプトで「個人事業主12ターン運営→決算(累進課税)→法人成り→従業員雇用→法人として12ターン運営→決算(軽減税率法人税+均等割)」「現金わずかな状態で高額な累積利益を抱えて決算を迎え黒字倒産する」の両シナリオを実行し、期待通りの挙動を確認。
 
-### apps/mobile側は次回に持ち越し
+### 実装した内容(`apps/mobile`)
 
-このセッション中、`apps/mobile`側で別セッションがイベント通知機能(`EventAlertModal.tsx`・`coreSlice.ts`の`latestTriggeredEvents`等)を並行して編集していたため、衝突を避けて`apps/mobile`のUI実装(組織形態タブ・法人成り/HD化ボタン・決算/黒字倒産の通知UI・HudBarのentityTypeバッジ)は見送った。`apps/mobile/src/data/sampleWorld.ts`(初期状態を`entityType: 'soleProprietorship'`に設定)と`apps/mobile/src/state/persistence.ts`(新しいstate形状に対応する保存キーのローテーション`save-v1`→`save-v2`)のみ、新しい型に対応させるため最小限修正済み。`npx tsc --noEmit`はこの時点でエラーなし。次回はまず`git status`で他セッションの状況を確認し、`corporateSlice.ts`に`incorporate`/`establishHolding`アクションを追加、`CorporateScreen.tsx`に組織タブを追加するところから再開する。
+前回セッションで`packages/core`のみ完了・コミット(`b06f71d`)されていたが、UI/UX刷新セッションを挟んで本セッションで`apps/mobile`側の配線を完了させた。
+
+- `state/slices/corporateSlice.ts`: `incorporate()`(法人成り。`canIncorporate`で不成立時は無視)・`establishHoldingAction(distinctCityCount)`(HD化。`distinctCityCount`は呼び出し元のUI層が`store.propertyId→Property.cityId`を解決して渡す)を追加。
+- `state/slices/coreSlice.ts`: `latestSettlement`(直近決算結果)を`advance()`の戻り値から追跡し、`dismissSettlement()`で消去。`resetGame()`(黒字倒産後の再スタート用。保存データを破棄し`createInitialState()`へ戻す)を追加。`advance()`は`state.isBankrupt`時に何もしない早期returnを追加(UI側のブロックと二重の防御)。
+- `state/persistence.ts`: `clearState()`(保存データ破棄)を追加。
+- `components/SettlementModal.tsx`(新規): 決算発生時に税目別内訳(所得税/住民税/事業税 または 法人税/均等割)と納税額合計を表示するモーダル。赤字決算時は`tone="urgent"`。
+- `components/BankruptcyScreen.tsx`(新規): `isBankrupt`時に全画面オーバーレイでゲームオーバー演出+「新しい会社で再スタート」ボタンを表示。
+- `components/Modal.tsx`: `AppModal`に`tone?: 'default' | 'urgent'`を追加(赤アクセントの枠線・glow・警告アイコン)。緊急イベント(`EventAlertModal`)・赤字決算通知の両方で使う。
+- `screens/CorporateScreen.tsx`: 新タブ「組織」を追加。現在の企業成長ステージ表示、法人成り/HD化の条件チェックリストとボタン、決算履歴(直近6件)を表示。
+- `components/HudBar.tsx`: 日付表示の隣に企業形態バッジ(個人事業主/株式会社/ホールディングス)を追加。
+- `App.tsx`: `SettlementModal`・`BankruptcyScreen`を配線。
+
+### 既存バグの修正(Phase5とは無関係、本セッションで発見)
+
+`App.tsx`の`<HudBar />`が`<NavigationContainer>`の外(兄弟要素)に置かれており、`HudBar`内部の`useNavigation()`呼び出しが起動時に例外を投げてクラッシュする状態だった(`RootNavigator.tsx`の`TabNavigator`内にも重複して正しく配置された`<HudBar />`があり、二重管理になっていた)。過去のUI刷新セッションの並行編集マージに起因すると見られる。`HudBar`を`NavigationContainer`の内側(全画面共通ヘッダーとして`RootNavigator`の直前)に一本化し、`TabNavigator`側の重複を削除して解消した。
+
+### 検証
+
+- `packages/core`: `npm run build`→`node --test dist/**/*.test.js` 179件全パス(コード変更なし、既存の実装を再確認)。
+- `apps/mobile`: `npm run typecheck`エラーなし。
+- ゲームループ(個人事業主で開始→現金を貯めて法人成り→従業員雇用・店舗拡大→10店舗/3都市でHD化条件充足→IPO)をコードレビューで机上検証。実機/シミュレータでの起動確認は本セッションの環境では実施できていない(次回引き継ぎ時に実施推奨)。

@@ -10,17 +10,25 @@ import {
   calculateAcquisitionPrice,
   calculateDepartmentUpgradeCost,
   calculateMarketShareRatio,
+  canEstablishHolding,
+  canIncorporate,
   canUnlockResearchNode,
   generateEmployeeCandidates,
+  HOLDING_ESTABLISHMENT_COST,
+  HOLDING_MIN_CITY_COUNT,
+  HOLDING_MIN_STORE_COUNT,
+  INCORPORATION_COST,
   marketingCampaignPresets,
   researchTree,
   type DepartmentType,
+  type EntityType,
   type ExecutiveTitle,
   type ResearchBranch,
 } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { AppButton } from '../components/AppButton';
 import { DonutChart } from '../components/DonutChart';
+import { CheckCircleIcon, WarningIcon } from '../icons';
 import { colors } from '../theme/theme';
 
 function formatCurrency(amount: number): string {
@@ -60,9 +68,10 @@ const LOAN_PRESETS = [
 
 const HQ_UPGRADE_COST_PER_TIER = 800_000;
 
-type DepartmentTabKey = 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research';
+type DepartmentTabKey = 'org' | 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research';
 
 const TABS: { key: DepartmentTabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'org', label: '組織', icon: 'ribbon' },
   { key: 'hq', label: '本社', icon: 'business' },
   { key: 'exec', label: '役員', icon: 'people-circle' },
   { key: 'marketing', label: '宣伝', icon: 'megaphone' },
@@ -83,6 +92,36 @@ const RESEARCH_BRANCH_ICONS: Record<ResearchBranch, keyof typeof Ionicons.glyphM
   machine: 'cafe',
 };
 const RESEARCH_BRANCHES: ResearchBranch[] = ['app', 'eco', 'machine'];
+
+const ENTITY_STAGE_META: Record<EntityType, { label: string; description: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+  soleProprietorship: {
+    label: '個人事業主',
+    description: '所得税(累進課税)・住民税・個人事業税が決算で一括課税される。売上1,000万円超で消費税課税事業者へ。',
+    icon: 'person',
+    color: colors.textSecondary,
+  },
+  corporation: {
+    label: '株式会社',
+    description: '法人税(軽減税率二段階)+法人住民税均等割。社会保険料が毎月の固定費として発生する。',
+    icon: 'business',
+    color: colors.gold,
+  },
+  holding: {
+    label: 'ホールディングス',
+    description: 'グループ経営体制。多店舗・多都市展開したブランドを持株会社として統括する。',
+    icon: 'layers',
+    color: colors.positive,
+  },
+};
+
+function RequirementRow({ met, label }: { met: boolean; label: string }) {
+  return (
+    <View className="flex-row items-center gap-xs py-[2px]">
+      {met ? <CheckCircleIcon size={14} color={colors.positive} /> : <WarningIcon size={14} color={colors.textMuted} />}
+      <Text className={`text-xs ${met ? 'text-text-primary' : 'text-text-muted'}`}>{label}</Text>
+    </View>
+  );
+}
 
 function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
   return (
@@ -138,7 +177,11 @@ export function CorporateScreen() {
   const setExecutiveAutomation = useGameStore((s) => s.setExecutiveAutomation);
   const unlockResearchNode = useGameStore((s) => s.unlockResearchNode);
 
-  const [activeDept, setActiveDept] = useState<DepartmentTabKey>('hq');
+  const properties = useGameStore((s) => s.properties);
+  const incorporate = useGameStore((s) => s.incorporate);
+  const establishHoldingAction = useGameStore((s) => s.establishHoldingAction);
+
+  const [activeDept, setActiveDept] = useState<DepartmentTabKey>('org');
   const [selectedTitle, setSelectedTitle] = useState<ExecutiveTitle | null>(null);
   const candidates = useMemo(
     () => (selectedTitle ? generateEmployeeCandidates('executive', 3, state.turn, Math.random, selectedTitle) : []),
@@ -178,6 +221,18 @@ export function CorporateScreen() {
       )
     : 0;
 
+  const distinctCityCount = useMemo(() => {
+    const propertyById = new Map(properties.map((property) => [property.id, property]));
+    const cityIds = new Set(
+      state.stores
+        .map((store) => propertyById.get(store.propertyId)?.cityId)
+        .filter((cityId): cityId is string => Boolean(cityId))
+    );
+    return cityIds.size;
+  }, [state.stores, properties]);
+
+  const stageMeta = ENTITY_STAGE_META[state.entityType];
+
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
       <Text className="text-xl font-bold text-text-primary">企業統治</Text>
@@ -198,6 +253,85 @@ export function CorporateScreen() {
           );
         })}
       </View>
+
+      {activeDept === 'org' ? (
+        <>
+          <CardBox>
+            <SectionLabel icon={stageMeta.icon} label="企業成長ステージ" />
+            <View className="flex-row items-center gap-sm">
+              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `${stageMeta.color}26` }}>
+                <Ionicons name={stageMeta.icon} size={22} color={stageMeta.color} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-lg font-bold text-text-primary">{stageMeta.label}</Text>
+                <Text className="text-xs text-text-secondary">{stageMeta.description}</Text>
+              </View>
+            </View>
+            {state.entityStatus.incorporatedAtTurn ? (
+              <Text className="text-[11px] text-text-muted">法人成り: T{state.entityStatus.incorporatedAtTurn}</Text>
+            ) : null}
+            {state.entityStatus.holdingEstablishedAtTurn ? (
+              <Text className="text-[11px] text-text-muted">HD化: T{state.entityStatus.holdingEstablishedAtTurn}</Text>
+            ) : null}
+          </CardBox>
+
+          {state.entityType === 'soleProprietorship' ? (
+            <CardBox>
+              <SectionLabel icon="arrow-up-circle" label="法人成り(株式会社化)" />
+              <Text className="text-xs text-text-secondary">
+                個人の累進課税から法人税(軽減税率二段階)へ切り替わり、役員報酬・社会保険料の設計が可能になる。
+              </Text>
+              <RequirementRow met={state.cash >= INCORPORATION_COST} label={`手続き費用 ${formatCurrency(INCORPORATION_COST)}`} />
+              <AppButton
+                label={`法人成りする(${formatCurrency(INCORPORATION_COST)})`}
+                icon="arrow-up-circle"
+                disabled={!canIncorporate(state)}
+                onPress={incorporate}
+              />
+            </CardBox>
+          ) : null}
+
+          {state.entityType === 'corporation' ? (
+            <CardBox>
+              <SectionLabel icon="layers" label="ホールディングス化" />
+              <Text className="text-xs text-text-secondary">
+                多店舗・多都市展開が一定規模に達すると、持株会社体制へ移行しグループ経営が可能になる。
+              </Text>
+              <RequirementRow met={state.stores.length >= HOLDING_MIN_STORE_COUNT} label={`保有店舗数 ${state.stores.length} / ${HOLDING_MIN_STORE_COUNT}`} />
+              <RequirementRow met={distinctCityCount >= HOLDING_MIN_CITY_COUNT} label={`出店都市数 ${distinctCityCount} / ${HOLDING_MIN_CITY_COUNT}`} />
+              <RequirementRow met={state.cash >= HOLDING_ESTABLISHMENT_COST} label={`設立費用 ${formatCurrency(HOLDING_ESTABLISHMENT_COST)}`} />
+              <AppButton
+                label={`HD体制へ移行する(${formatCurrency(HOLDING_ESTABLISHMENT_COST)})`}
+                icon="layers"
+                disabled={!canEstablishHolding(state, distinctCityCount)}
+                onPress={() => establishHoldingAction(distinctCityCount)}
+              />
+            </CardBox>
+          ) : null}
+
+          <CardBox>
+            <SectionLabel icon="receipt" label="決算履歴" />
+            {state.history.settlements.length === 0 ? (
+              <Text className="text-xs text-text-muted">まだ決算が発生していません(12ターンごとに実施)</Text>
+            ) : (
+              [...state.history.settlements]
+                .slice(-6)
+                .reverse()
+                .map((settlement, index) => (
+                  <View
+                    key={settlement.turn}
+                    className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}
+                  >
+                    <Text className="text-xs text-text-secondary">T{settlement.turn}決算</Text>
+                    <Text className="text-sm font-semibold" style={{ color: colors.negative }}>
+                      -{formatCurrency(settlement.totalTaxDue)}
+                    </Text>
+                  </View>
+                ))
+            )}
+          </CardBox>
+        </>
+      ) : null}
 
       {activeDept === 'hq' ? (
         <>

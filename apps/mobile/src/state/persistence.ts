@@ -14,6 +14,15 @@ export async function saveState(state: CoffeeEmpireState): Promise<void> {
   }
 }
 
+/** 黒字倒産後の再スタート等、保存データを明示的に破棄したい場合に使う。 */
+export async function clearState(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn('[persistence] failed to clear state', error);
+  }
+}
+
 /**
  * 保存データが存在しない、または壊れている(JSONパース失敗・形状不正)場合はnullを返す。
  * 呼び出し側はnullのときcreateInitialState()にフォールバックすること。

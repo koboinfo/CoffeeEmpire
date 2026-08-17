@@ -2,6 +2,10 @@ import type { StateCreator } from 'zustand';
 import {
   applyEffect,
   calculateDepartmentUpgradeCost,
+  canEstablishHolding,
+  canIncorporate,
+  establishHolding,
+  incorporateCompany,
   upgradeDepartment,
   upgradeHeadquarters,
   type DepartmentType,
@@ -22,6 +26,8 @@ export interface CorporateSlice {
   hireExecutive: (candidate: Employee) => void;
   launchCampaign: (preset: MarketingCampaignPreset) => void;
   setExecutiveAutomation: (settings: Partial<ExecutiveAutomation>) => void;
+  incorporate: () => void;
+  establishHoldingAction: (distinctCityCount: number) => void;
 }
 
 export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlice> = (set, get) => ({
@@ -97,5 +103,17 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
   setExecutiveAutomation: (settings) => {
     const { state } = get();
     set({ state: { ...state, executiveAutomation: { ...state.executiveAutomation, ...settings } } });
+  },
+
+  incorporate: () => {
+    const { state } = get();
+    if (!canIncorporate(state)) return;
+    set({ state: incorporateCompany(state) });
+  },
+
+  establishHoldingAction: (distinctCityCount) => {
+    const { state } = get();
+    if (!canEstablishHolding(state, distinctCityCount)) return;
+    set({ state: establishHolding(state, distinctCityCount) });
   },
 });
