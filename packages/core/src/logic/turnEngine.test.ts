@@ -4,6 +4,7 @@ import type { Property, City, Store, MenuItem, Equipment } from '../types/store.
 import type { GreenBeanLot } from '../types/supplyChain.js';
 import type { MarketingCampaign, RealEstateInvestment } from '../types/corporate.js';
 import type { CoffeeEmpireState, SimEvent } from '../types/simState.js';
+import type { StoreEventDefinition } from '../types/storeEvents.js';
 import { advanceTurn } from './turnEngine.js';
 
 function makeMenuItem(overrides: Partial<MenuItem> = {}): MenuItem {
@@ -116,8 +117,8 @@ test('advanceTurn: 発生したイベントの効果が適用される', () => {
 test('advanceTurn: 人件費が0人のときpayrollのPL項目を含めない(不要なゼロ項目を作らない)', () => {
   const state = makeState({ employees: [] });
   const { incomeStatement } = advanceTurn(state, context, [], () => 1);
-  // 人件費0でもoperatingExpensesはrent分のみ含む(payroll項目は追加されない設計)
-  assert.equal(incomeStatement.operatingExpenses, 3000);
+  // 人件費0でもoperatingExpensesはrent(3000)+水道光熱費(機材0件・営業14時間=61000)を含む(payroll項目は追加されない設計)
+  assert.equal(incomeStatement.operatingExpenses, 64000);
 });
 
 test('advanceTurn: balanceSheetの資産合計=負債合計+資本合計が成立する', () => {
@@ -159,8 +160,8 @@ test('advanceTurn: 設備の維持費がoperatingExpensesに含まれる', () =>
   };
   const state = makeState({ stores: [makeStore({ equipment: [equipment] })] });
   const { incomeStatement } = advanceTurn(state, context, [], () => 1);
-  // rent(3000) + maintenance(30)
-  assert.equal(incomeStatement.operatingExpenses, 3030);
+  // rent(3000) + maintenance(30) + 水道光熱費(機材1件・営業14時間=69000)
+  assert.equal(incomeStatement.operatingExpenses, 72030);
 });
 
 test('advanceTurn: furniture(座席・内装)機材があると売上が増加する(interiorQualityFactor)', () => {
@@ -428,4 +429,48 @@ test('advanceTurn: 自社農園の維持費はincomeStatement.operatingExpenses�
   const resultWithout = advanceTurn(withoutFarm, context, [], () => 0.9);
   const resultWith = advanceTurn(withFarm, context, [], () => 0.9);
   assert.ok(resultWith.incomeStatement.operatingExpenses > resultWithout.incomeStatement.operatingExpenses);
+});
+
+test('advanceTurn: 店舗ごとイベントが発生するとtriggeredStoreEventsに積まれ、現金に反映される', () => {
+  const storeEventDefinitions: StoreEventDefinition[] = [
+    { id: 'equipment-breakdown', probability: 1, cashRange: [-150_000, -150_000] },
+  ];
+  const state = makeState();
+  const { nextState, triggeredStoreEvents, incomeStatement } = advanceTurn(
+    state,
+    context,
+    [],
+    () => 0,
+    0,
+    [],
+    [],
+    storeEventDefinitions
+  );
+
+  assert.equal(triggeredStoreEvents.length, 1);
+  assert.equal(triggeredStoreEvents[0].eventId, 'equipment-breakdown');
+  assert.equal(triggeredStoreEvents[0].storeId, state.stores[0].id);
+  // 店舗イベントの現金影響はincomeStatementのPLには乗らず、直接cashに反映される(既存の会社イベントと同じ設計)。
+  assert.equal(nextState.cash, state.cash + incomeStatement.netIncome - 150_000);
+});
+
+test('advanceTurn: 店舗ごとイベントで顧客満足度が変化する', () => {
+  const storeEventDefinitions: StoreEventDefinition[] = [
+    { id: 'food-safety-rumor', probability: 1, satisfactionRange: [-20, -20] },
+  ];
+  const state = makeState();
+  const { nextState } = advanceTurn(state, context, [], () => 0, 0, [], [], storeEventDefinitions);
+
+  assert.equal(nextState.stores[0].cumulativeCustomerSatisfaction, 40); // 60 - 20
+});
+
+test('advanceTurn: viral-buzz型の店舗イベントは当ターンの売上を増加させる', () => {
+  const storeEventDefinitions: StoreEventDefinition[] = [
+    { id: 'viral-buzz', probability: 1, revenueMultiplierRange: [3, 3] },
+  ];
+  const state = makeState();
+  const withoutBuzz = advanceTurn(state, context, [], () => 0);
+  const withBuzz = advanceTurn(state, context, [], () => 0, 0, [], [], storeEventDefinitions);
+
+  assert.ok(withBuzz.incomeStatement.revenue > withoutBuzz.incomeStatement.revenue);
 });

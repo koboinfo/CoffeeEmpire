@@ -7,6 +7,7 @@ import {
   farms,
   marketingCampaignPresets,
   researchTree,
+  storeEvents,
   type BalanceSheet,
   type CashFlowStatement,
   type CoffeeEmpireState,
@@ -64,14 +65,23 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
     try {
       const { state, properties, pendingCapitalInjection } = get();
       const turnContext = buildTurnContext(properties);
-      const { nextState, incomeStatement, balanceSheet, cashFlowStatement, storeReports, triggeredEvents } = advanceTurn(
+      const {
+        nextState,
+        incomeStatement,
+        balanceSheet,
+        cashFlowStatement,
+        storeReports,
+        triggeredEvents,
+        triggeredStoreEvents,
+      } = advanceTurn(
         state,
         turnContext,
         events,
         Math.random,
         pendingCapitalInjection,
         marketingCampaignPresets,
-        researchTree
+        researchTree,
+        storeEvents
       );
       const updatedState: CoffeeEmpireState = {
         ...nextState,
@@ -92,6 +102,11 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
             [
               ...nextState.history.newsFeed,
               ...triggeredEvents.map((event) => ({ turn: nextState.turn, eventId: event.id })),
+              ...triggeredStoreEvents.map((event) => ({
+                turn: nextState.turn,
+                eventId: event.eventId,
+                storeId: event.storeId,
+              })),
             ],
             MAX_HISTORY_TURNS
           ),

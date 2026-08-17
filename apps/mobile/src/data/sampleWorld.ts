@@ -6,12 +6,12 @@ if (!tokyo) {
 }
 
 export const sampleProperties: Property[] = [
-  { id: 'prop-tokyo-1', cityId: tokyo.id, size: 'medium', footTraffic: 1200, rentPerMonth: 4500, ownership: 'leased' },
+  { id: 'prop-tokyo-1', cityId: tokyo.id, size: 'medium', footTraffic: 1200, rentPerMonth: 720_000, ownership: 'leased' },
 ];
 
 const flagshipMenu: MenuItem[] = [
   { id: 'menu-espresso', name: 'Espresso', category: 'coffee', basePrice: 400, currentPrice: 400, costOfGoods: 100, qualityScore: 70 },
-  { id: 'menu-latte', name: 'Latte', category: 'coffee', basePrice: 550, currentPrice: 550, costOfGoods: 150, qualityScore: 72 },
+  { id: 'menu-latte', name: 'Latte', category: 'coffee', basePrice: 550, currentPrice: 550, costOfGoods: 130, qualityScore: 72 },
 ];
 
 export const sampleStores: Store[] = [
@@ -36,7 +36,7 @@ export function createInitialState(): CoffeeEmpireState {
       avgQuality: { key: 'avgQuality', value: 70, min: 0, max: 100 },
       employeeMorale: { key: 'employeeMorale', value: 60, min: 0, max: 100 },
     },
-    cash: 500_000,
+    cash: 10_000_000,
     stores: sampleStores,
     employees: [],
     greenBeanInventory: [],
@@ -50,9 +50,9 @@ export function createInitialState(): CoffeeEmpireState {
       {
         id: 'comp-rivalbeans',
         name: 'Rival Beans',
-        valuation: 1_800_000,
+        valuation: 36_000_000,
         isAcquirable: true,
-        cash: 400_000,
+        cash: 8_000_000,
         storesByCity: { 'city-tokyo': 2 },
         avgPrice: 450,
       },

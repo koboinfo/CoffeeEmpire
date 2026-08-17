@@ -12,7 +12,8 @@ import {
 } from '@coffee-empire/core';
 import type { GameStore } from '../gameStore';
 
-const HEADQUARTERS_ESTABLISHMENT_COST = 20000;
+const HEADQUARTERS_ESTABLISHMENT_COST = 800_000;
+const HEADQUARTERS_UPGRADE_COST_PER_TIER = 800_000;
 
 export interface CorporateSlice {
   establishHeadquarters: (cityId: string) => void;
@@ -32,7 +33,7 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
       id: `hq-${cityId}`,
       cityId,
       sizeTier: 1,
-      rentPerMonth: 2000,
+      rentPerMonth: 150_000,
       departments: {},
     };
 
@@ -42,7 +43,7 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
   upgradeHeadquartersAction: () => {
     const { state } = get();
     if (!state.headquarters) return;
-    const upgradeCost = state.headquarters.sizeTier * 20000;
+    const upgradeCost = state.headquarters.sizeTier * HEADQUARTERS_UPGRADE_COST_PER_TIER;
     if (state.cash < upgradeCost) return;
 
     set({

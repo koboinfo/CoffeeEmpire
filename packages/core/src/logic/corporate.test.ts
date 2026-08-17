@@ -66,8 +66,8 @@ test('evaluateRealEstateInvestment: purchasePriceとmonthlyRentalIncomeが正の
 });
 
 test('calculateDepartmentUpgradeCost: レベルが上がるほど高くなる', () => {
-  assert.equal(calculateDepartmentUpgradeCost(0), 15000);
-  assert.equal(calculateDepartmentUpgradeCost(2), 45000);
+  assert.equal(calculateDepartmentUpgradeCost(0), 400_000);
+  assert.equal(calculateDepartmentUpgradeCost(2), 1_200_000);
 });
 
 test('upgradeDepartment: 未設置部門はlevel1で新設される', () => {
@@ -123,7 +123,7 @@ function makeAutomationState(overrides: Partial<CoffeeEmpireState> = {}): Coffee
     turn: 3,
     turnUnit: 'month',
     statuses: {},
-    cash: 1_000_000,
+    cash: 10_000_000,
     stores: [],
     employees: [],
     greenBeanInventory: [],

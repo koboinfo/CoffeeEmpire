@@ -45,6 +45,26 @@ test('decideCompetitorAction: 資金潤沢かつrngが閾値未満なら出店�
   }
 });
 
+test('decideCompetitorAction: playerStoresByCityがあれば自社が強い都市が出店拡大先に選ばれやすい', () => {
+  const competitor = makeCompetitor({ valuation: 1_500_000, cash: 500_000 });
+  // 1回目のrng()は出店拡大の発生判定(<0.3で発生)、2回目は都市の加重抽選に使われる。
+  // city-2に自社出店が集中している(重み: city-1=1, city-2=10)ため、大きめの値を返すと
+  // 重みの大きいcity-2が選ばれるはず。
+  const rngValues = [0.1, 0.99];
+  let call = 0;
+  const rng = () => rngValues[Math.min(call++, rngValues.length - 1)];
+
+  const action = decideCompetitorAction(
+    competitor,
+    { ...cityContext, cityIds: ['city-1', 'city-2'], playerStoresByCity: { 'city-1': 0, 'city-2': 9 } },
+    rng
+  );
+  assert.equal(action.type, 'expand');
+  if (action.type === 'expand') {
+    assert.equal(action.cityId, 'city-2');
+  }
+});
+
 test('decideCompetitorAction: 出店拡大の条件を満たしても候補都市が無ければholdPriceにフォールバックする', () => {
   const competitor = makeCompetitor({ valuation: 1_500_000, cash: 500_000 });
   const action = decideCompetitorAction(competitor, { ...cityContext, cityIds: [] }, () => 0.1);

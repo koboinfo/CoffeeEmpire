@@ -4,6 +4,7 @@ import type { CoffeeEmpireState, PLLineItem, SimEvent } from '../types/simState.
 import type { IncomeStatement, BalanceSheet, CashFlowStatement } from '../types/finance.js';
 import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.js';
 import type { ResearchNodeDefinition } from '../types/research.js';
+import type { StoreEventDefinition, TriggeredStoreEvent } from '../types/storeEvents.js';
 import {
   calculateStoreRevenue,
   calculateInteriorQualityFactor,
@@ -17,6 +18,9 @@ import {
   averageMenuQuality,
 } from './financials.js';
 import { rollEvents, applyEffect } from './events.js';
+import { resolveEventEffect } from '../data/eventEffectRanges.js';
+import { rollStoreEvents } from './storeEvents.js';
+import { calculateSeasonalFactor } from './seasonality.js';
 import { applyExecutiveAutomation, calculateDynamicStockPrice, calculateMarketShareRatio } from './corporate.js';
 import { serviceLoans } from './loans.js';
 import { calculateCompetitivePressure, simulateCompetitorTurn } from './competitorAI.js';
@@ -41,6 +45,7 @@ export interface AdvanceTurnResult {
   balanceSheet: BalanceSheet;
   cashFlowStatement: CashFlowStatement;
   triggeredEvents: SimEvent[];
+  triggeredStoreEvents: TriggeredStoreEvent[];
   storeReports: Record<string, StoreReport>;
 }
 
@@ -61,7 +66,8 @@ export function advanceTurn(
   rng: () => number = Math.random,
   capitalInjection = 0,
   marketingPresets: MarketingCampaignPreset[] = [],
-  researchTree: ResearchNodeDefinition[] = []
+  researchTree: ResearchNodeDefinition[] = [],
+  storeEventDefinitions: StoreEventDefinition[] = []
 ): AdvanceTurnResult {
   // 役員への権限委譲(自動価格調整/自動採用/自動宣伝)を収益計算より前に適用し、
   // 当ターンの損益へ反映させる。stores/employees/activeCampaigns以外はstateと同一。
@@ -93,8 +99,15 @@ export function advanceTurn(
     return { ...ownedFarm, lastHarvestFailed: harvest.isHarvestFailure };
   });
 
+  // 季節変動係数(夏場のアイス需要・年末商戦などで月ごとに売上が±20〜30%ほど揺れる)。全店舗一律に適用する。
+  const seasonalFactor = calculateSeasonalFactor(state.turn + 1);
+
   const plItems: PLLineItem[] = [];
   const storeReports: Record<string, StoreReport> = {};
+  const triggeredStoreEvents: TriggeredStoreEvent[] = [];
+  let storeEventCashEffect = 0;
+  const storeSatisfactionDeltaById: Record<string, number> = {};
+  const storeMotivationDeltaById: Record<string, number> = {};
 
   if (totalFarmMaintenanceCost > 0) {
     plItems.push({
@@ -113,10 +126,40 @@ export function advanceTurn(
     // 競合の出店密度による需要干渉(0.5-1.0倍)。都市内の競合店舗が多いほど客足が落ちる。
     const competitivePressure = calculateCompetitivePressure(property.cityId, state.competitorBrands);
     const interiorQualityFactor = calculateInteriorQualityFactor(store.equipment);
+
+    // 店舗ごとイベント(機材故障/ストライキ/賃料値上げ/SNSバズり/悪評)を1店舗ずつ独立判定する。
+    const storeEmployees = state.employees.filter((employee) => employee.assignedStoreId === store.id);
+    const avgEmployeeMotivation =
+      storeEmployees.length > 0
+        ? storeEmployees.reduce((sum, employee) => sum + employee.motivation, 0) / storeEmployees.length
+        : 100; // 従業員がいない店舗はストライキのしようがないため高値をデフォルトにする
+    const storeEventResults = rollStoreEvents(storeEventDefinitions, store, avgEmployeeMotivation, rng);
+    triggeredStoreEvents.push(...storeEventResults);
+    const storeEventRevenueMultiplier = storeEventResults.reduce((mult, event) => mult * event.revenueMultiplier, 1);
+    storeEventCashEffect += storeEventResults.reduce((sum, event) => sum + event.cashAmount, 0);
+    if (storeEventResults.length > 0) {
+      storeSatisfactionDeltaById[store.id] = storeEventResults.reduce(
+        (sum, event) => sum + event.satisfactionDelta,
+        0
+      );
+      storeMotivationDeltaById[store.id] = storeEventResults.reduce((sum, event) => sum + event.motivationDelta, 0);
+    }
+
     const rawRevenue = calculateStoreRevenue(store, property, city);
-    const revenue = rawRevenue.revenue * competitivePressure * researchEffects.revenueMultiplier * interiorQualityFactor;
+    const revenue =
+      rawRevenue.revenue *
+      competitivePressure *
+      researchEffects.revenueMultiplier *
+      interiorQualityFactor *
+      storeEventRevenueMultiplier *
+      seasonalFactor;
     const variableCost =
-      rawRevenue.variableCost * competitivePressure * researchEffects.costMultiplier * interiorQualityFactor;
+      rawRevenue.variableCost *
+      competitivePressure *
+      researchEffects.costMultiplier *
+      interiorQualityFactor *
+      storeEventRevenueMultiplier *
+      seasonalFactor;
     plItems.push({ key: `revenue:${store.id}`, label: `${store.name} 売上`, amount: revenue, kind: 'revenue' });
     storeReports[store.id] = { storeId: store.id, revenue, customers: rawRevenue.customers };
     plItems.push({
@@ -141,6 +184,19 @@ export function advanceTurn(
         kind: 'fixedCost',
       });
     }
+
+    // 水道光熱費: 機材数・営業時間の長さに連動し、月額4万〜10万円の実勢レンジにクランプする。
+    const operatingHoursSpan = Math.max(0, store.operatingHours.close - store.operatingHours.open);
+    const utilitiesCost = Math.min(
+      100_000,
+      Math.max(40_000, 40_000 + store.equipment.length * 8_000 + operatingHoursSpan * 1_500)
+    );
+    plItems.push({
+      key: `utilities:${store.id}`,
+      label: `${store.name} 水道光熱費`,
+      amount: utilitiesCost,
+      kind: 'fixedCost',
+    });
   }
 
   const payroll = calculatePayroll(state.employees);
@@ -181,11 +237,13 @@ export function advanceTurn(
   );
 
   const triggeredEvents = rollEvents(events, state, rng);
-  const eventCashEffect = triggeredEvents.reduce((sum, event) => sum + (event.effect.cash ?? 0), 0);
+  const resolvedCompanyEffects = triggeredEvents.map((event) => resolveEventEffect(event.id, event.effect, rng));
+  const companyEventCashEffect = resolvedCompanyEffects.reduce((sum, effect) => sum + (effect.cash ?? 0), 0);
+  const eventCashEffect = companyEventCashEffect + storeEventCashEffect;
 
   let statusState: CoffeeEmpireState = { ...state, turn: nextTurn };
-  for (const event of triggeredEvents) {
-    const { cash: _cash, ...statusOnlyEffect } = event.effect;
+  for (const effect of resolvedCompanyEffects) {
+    const { cash: _cash, ...statusOnlyEffect } = effect;
     statusState = { ...statusState, ...applyEffect(statusState, statusOnlyEffect) };
   }
 
@@ -246,11 +304,36 @@ export function advanceTurn(
   const allMenuItems = state.stores.flatMap((store) => store.menu);
   const playerAvgQuality = averageMenuQuality(allMenuItems);
   const playerAvgPrice = averageMenuPrice(allMenuItems);
+
+  // 自社の都市別出店数。競合の出店拡大が自社の好調な都市を優先的に狙うための重み付けに使う
+  // (店舗単位の近接配置ではなく都市単位の近似)。
+  const playerStoresByCity: Record<string, number> = {};
+  for (const store of state.stores) {
+    const property = context.properties[store.propertyId];
+    if (!property) continue;
+    playerStoresByCity[property.cityId] = (playerStoresByCity[property.cityId] ?? 0) + 1;
+  }
+
   const { competitors: nextCompetitorBrands } = simulateCompetitorTurn(
     state.competitorBrands,
-    { playerAvgQuality, playerAvgPrice, cityIds: Object.keys(context.cities) },
+    { playerAvgQuality, playerAvgPrice, cityIds: Object.keys(context.cities), playerStoresByCity },
     rng
   );
+
+  // 店舗ごとイベントによる顧客満足度・従業員モチベーションへの影響をnextStateに反映する。
+  const storesAfterEvents = statusState.stores.map((store) => {
+    const delta = storeSatisfactionDeltaById[store.id];
+    if (!delta) return store;
+    return {
+      ...store,
+      cumulativeCustomerSatisfaction: Math.min(100, Math.max(0, store.cumulativeCustomerSatisfaction + delta)),
+    };
+  });
+  const employeesAfterEvents = statusState.employees.map((employee) => {
+    const delta = employee.assignedStoreId ? storeMotivationDeltaById[employee.assignedStoreId] : undefined;
+    if (!delta) return employee;
+    return { ...employee, motivation: Math.min(100, Math.max(0, employee.motivation + delta)) };
+  });
 
   const nextState: CoffeeEmpireState = {
     ...statusState,
@@ -261,7 +344,17 @@ export function advanceTurn(
     competitorBrands: nextCompetitorBrands,
     greenBeanInventory: greenBeanInventoryAfterHarvest,
     ownedFarms: ownedFarmsAfterHarvest,
+    stores: storesAfterEvents,
+    employees: employeesAfterEvents,
   };
 
-  return { nextState, incomeStatement, balanceSheet, cashFlowStatement, triggeredEvents, storeReports };
+  return {
+    nextState,
+    incomeStatement,
+    balanceSheet,
+    cashFlowStatement,
+    triggeredEvents,
+    triggeredStoreEvents,
+    storeReports,
+  };
 }

@@ -33,7 +33,7 @@ const EXECUTIVE_TITLES: ExecutiveTitle[] = ['CMO', 'CFO', 'COO', 'CTO'];
 // 本社設立先は東京固定(MVPの簡略化。将来的に都市選択UIに拡張する)。
 const HEADQUARTERS_CITY_ID = 'city-tokyo';
 
-const IPO_SHARE_PRICE = 100;
+const IPO_SHARE_PRICE = 500;
 const IPO_TOTAL_SHARES = 100000;
 const IPO_PUBLIC_FLOAT_SHARES = 30000;
 
@@ -54,10 +54,12 @@ const DEPARTMENT_ICONS: Record<DepartmentType, keyof typeof Ionicons.glyphMap> =
 const DEPARTMENT_ORDER: DepartmentType[] = ['it', 'marketing', 'hr', 'finance'];
 
 const LOAN_PRESETS = [
-  { label: '短期融資', principal: 50_000, annualInterestRate: 0.06, termTurns: 12 },
-  { label: '中期融資', principal: 200_000, annualInterestRate: 0.08, termTurns: 24 },
-  { label: '長期融資', principal: 1_000_000, annualInterestRate: 0.1, termTurns: 48 },
+  { label: '短期融資', principal: 2_000_000, annualInterestRate: 0.06, termTurns: 12 },
+  { label: '中期融資', principal: 8_000_000, annualInterestRate: 0.08, termTurns: 24 },
+  { label: '長期融資', principal: 40_000_000, annualInterestRate: 0.1, termTurns: 48 },
 ];
+
+const HQ_UPGRADE_COST_PER_TIER = 800_000;
 
 type DepartmentTabKey = 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research';
 
@@ -190,13 +192,13 @@ export function CorporateScreen() {
                 <Text style={styles.rowLabel}>拡張レベル {state.headquarters.sizeTier}</Text>
                 <Text style={styles.rowLabel}>賃料 {formatCurrency(state.headquarters.rentPerMonth)} / 月</Text>
                 <AppButton
-                  label={`本社を拡張する(${formatCurrency(state.headquarters.sizeTier * 20000)})`}
+                  label={`本社を拡張する(${formatCurrency(state.headquarters.sizeTier * HQ_UPGRADE_COST_PER_TIER)})`}
                   icon="arrow-up-circle"
                   onPress={upgradeHeadquartersAction}
                 />
               </>
             ) : (
-              <AppButton label="本社を設立する(¥20,000)" icon="business" onPress={() => establishHeadquarters(HEADQUARTERS_CITY_ID)} />
+              <AppButton label="本社を設立する(¥800,000)" icon="business" onPress={() => establishHeadquarters(HEADQUARTERS_CITY_ID)} />
             )}
           </Card>
 

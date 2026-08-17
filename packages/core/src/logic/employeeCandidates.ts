@@ -2,10 +2,11 @@ import type { Employee, EmployeeRole, ExecutiveTitle } from '../types/employee.j
 
 const NAME_POOL = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Sam', 'Jamie', 'Drew', 'Avery'];
 
+// 月給ベース(日本のアルバイト時給1,100〜1,500円/店長月給25〜40万円の相場を参考に較正)。
 const BASE_SALARY_BY_ROLE: Record<EmployeeRole, number> = {
-  barista: 1800,
-  storeManager: 3000,
-  executive: 8000,
+  barista: 180_000,
+  storeManager: 320_000,
+  executive: 700_000,
 };
 
 /**

@@ -67,17 +67,23 @@ export function MapScreen() {
 
               <View style={styles.iconRow}>
                 <View style={styles.iconStat}>
+                  <Ionicons name="walk" size={12} color={colors.textSecondary} />
+                  <Text style={styles.iconStatText}>{Math.round(city.footTrafficIndex * 1000).toLocaleString('ja-JP')}</Text>
+                </View>
+                <View style={styles.iconStat}>
                   <View style={[styles.dot, { backgroundColor: colors.mapOwned }]} />
+                  <Ionicons name="cafe" size={12} color={colors.mapOwned} />
                   <Text style={styles.iconStatText}>{ownedCount}</Text>
                 </View>
                 <View style={styles.iconStat}>
                   <View style={[styles.dot, { backgroundColor: colors.mapCompetitor }]} />
+                  <Ionicons name="flag" size={12} color={colors.mapCompetitor} />
                   <Text style={styles.iconStatText}>{competitorCount}</Text>
                 </View>
-                {topShare && topShare.storeCount > 0 ? (
-                  <Text style={styles.shareText}>自社シェア {Math.round(topShare.share * 100)}%</Text>
-                ) : null}
               </View>
+              {topShare && topShare.storeCount > 0 ? (
+                <Text style={styles.shareText}>自社シェア {Math.round(topShare.share * 100)}%</Text>
+              ) : null}
 
               <AppButton
                 label="都市を見る"

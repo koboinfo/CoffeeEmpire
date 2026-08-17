@@ -98,8 +98,14 @@ export function NewStoreScreen() {
               <Text style={styles.vacantBadgeText}>空き物件</Text>
             </View>
             <Text style={styles.cityName}>{SIZE_LABEL[property.size]}</Text>
-            <Text style={styles.cityMeta}>足数 {property.footTraffic.toLocaleString('ja-JP')} / 月</Text>
-            <Text style={styles.cityMeta}>賃料 ¥{property.rentPerMonth.toLocaleString('ja-JP')} / 月</Text>
+            <View style={styles.previewRow}>
+              <Ionicons name="walk" size={12} color={colors.textSecondary} />
+              <Text style={styles.previewText}>{property.footTraffic.toLocaleString('ja-JP')}人/月</Text>
+            </View>
+            <View style={styles.previewRow}>
+              <Ionicons name="cash-outline" size={12} color={colors.gold} />
+              <Text style={styles.previewText}>¥{property.rentPerMonth.toLocaleString('ja-JP')}/月</Text>
+            </View>
             <AppButton
               label="出店する"
               icon="cafe"
@@ -136,6 +142,8 @@ const styles = StyleSheet.create({
   ownedPinLabel: { fontSize: 12, fontWeight: '700', color: colors.white, flexShrink: 1 },
   vacantBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   vacantBadgeText: { fontSize: 11, color: colors.mapVacant, fontWeight: '600' },
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  previewText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   sectionLabel: { ...typography.body, fontWeight: '600', color: colors.textPrimary, padding: spacing.md, paddingBottom: 0 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   propertyCard: { flex: 1, gap: 4 },

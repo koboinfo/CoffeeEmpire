@@ -10,14 +10,15 @@ export interface EquipmentTemplate {
   depreciationMonths: number;
 }
 
+// purchaseCost/maintenanceCostPerMonthは円ベース(実店舗の業務用機材相場を参考に較正)。
 export const equipmentCatalog: EquipmentTemplate[] = [
   {
     templateId: 'espresso-basic',
     name: 'エスプレッソマシン(ベーシック)',
     category: 'espressoMachine',
     tier: 1,
-    purchaseCost: 4000,
-    maintenanceCostPerMonth: 80,
+    purchaseCost: 350_000,
+    maintenanceCostPerMonth: 8_000,
     depreciationMonths: 24,
   },
   {
@@ -25,8 +26,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: 'エスプレッソマシン(プロ)',
     category: 'espressoMachine',
     tier: 3,
-    purchaseCost: 12000,
-    maintenanceCostPerMonth: 150,
+    purchaseCost: 1_200_000,
+    maintenanceCostPerMonth: 20_000,
     depreciationMonths: 36,
   },
   {
@@ -34,8 +35,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: 'グラインダー',
     category: 'grinder',
     tier: 2,
-    purchaseCost: 1500,
-    maintenanceCostPerMonth: 30,
+    purchaseCost: 120_000,
+    maintenanceCostPerMonth: 3_000,
     depreciationMonths: 24,
   },
   {
@@ -43,8 +44,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: 'POSレジ',
     category: 'pos',
     tier: 2,
-    purchaseCost: 800,
-    maintenanceCostPerMonth: 20,
+    purchaseCost: 80_000,
+    maintenanceCostPerMonth: 2_000,
     depreciationMonths: 36,
   },
   {
@@ -52,8 +53,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: '座席・内装(シンプル)',
     category: 'furniture',
     tier: 1,
-    purchaseCost: 1200,
-    maintenanceCostPerMonth: 20,
+    purchaseCost: 300_000,
+    maintenanceCostPerMonth: 5_000,
     depreciationMonths: 60,
   },
   {
@@ -61,8 +62,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: '座席・内装(スタンダード)',
     category: 'furniture',
     tier: 2,
-    purchaseCost: 3000,
-    maintenanceCostPerMonth: 40,
+    purchaseCost: 800_000,
+    maintenanceCostPerMonth: 12_000,
     depreciationMonths: 60,
   },
   {
@@ -70,8 +71,8 @@ export const equipmentCatalog: EquipmentTemplate[] = [
     name: '座席・内装(プレミアム)',
     category: 'furniture',
     tier: 4,
-    purchaseCost: 9000,
-    maintenanceCostPerMonth: 90,
+    purchaseCost: 2_000_000,
+    maintenanceCostPerMonth: 25_000,
     depreciationMonths: 60,
   },
 ];

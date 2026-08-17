@@ -5,6 +5,7 @@ export * from './types/corporate.js';
 export * from './types/finance.js';
 export * from './types/simState.js';
 export * from './types/research.js';
+export * from './types/storeEvents.js';
 
 export * from './logic/financials.js';
 export * from './logic/events.js';
@@ -17,10 +18,14 @@ export * from './logic/corporate.js';
 export * from './logic/supplyChain.js';
 export * from './logic/loans.js';
 export * from './logic/research.js';
+export * from './logic/storeEvents.js';
+export * from './logic/seasonality.js';
 
 export * from './data/cities.js';
 export * from './data/farms.js';
 export * from './data/events.js';
+export * from './data/eventEffectRanges.js';
+export * from './data/storeEvents.js';
 export * from './data/equipmentCatalog.js';
 export * from './data/marketingCampaignPresets.js';
 export * from './data/researchTree.js';

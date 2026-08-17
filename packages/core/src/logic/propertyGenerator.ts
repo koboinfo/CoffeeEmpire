@@ -1,9 +1,10 @@
 import type { City, Property } from '../types/store.js';
 
-const SIZE_PRESETS: { size: Property['size']; footTrafficMultiplier: number; rentMultiplier: number }[] = [
-  { size: 'kiosk', footTrafficMultiplier: 0.4, rentMultiplier: 0.3 },
-  { size: 'small', footTrafficMultiplier: 0.7, rentMultiplier: 0.6 },
-  { size: 'medium', footTrafficMultiplier: 1.0, rentMultiplier: 1.0 },
+// 賃料は「所得レベル1につき何円/月」を表す実額ベースの単価(日本の実店舗賃料相場を参考に較正)。
+const SIZE_PRESETS: { size: Property['size']; footTrafficMultiplier: number; rentPerIncomeLevel: number }[] = [
+  { size: 'kiosk', footTrafficMultiplier: 0.4, rentPerIncomeLevel: 15_000 },
+  { size: 'small', footTrafficMultiplier: 0.7, rentPerIncomeLevel: 25_000 },
+  { size: 'medium', footTrafficMultiplier: 1.0, rentPerIncomeLevel: 90_000 },
 ];
 
 /**
@@ -14,7 +15,7 @@ export function generatePropertiesForCity(city: City, rng: () => number = Math.r
   return SIZE_PRESETS.map((preset, index) => {
     const variance = 0.9 + rng() * 0.2; // 0.9 - 1.1
     const footTraffic = Math.round(city.footTrafficIndex * 1000 * preset.footTrafficMultiplier * variance);
-    const rentPerMonth = Math.round(city.incomeLevel * 500 * preset.rentMultiplier * variance);
+    const rentPerMonth = Math.round(city.incomeLevel * preset.rentPerIncomeLevel * variance);
 
     return {
       id: `prop-${city.id}-${preset.size}-${index}`,

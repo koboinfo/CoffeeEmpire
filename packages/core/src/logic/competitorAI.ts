@@ -4,6 +4,31 @@ export interface CompetitorMarketContext {
   playerAvgQuality: number; // 0-100
   playerAvgPrice: number;
   cityIds: string[]; // 出店拡大(expand)時の候補都市
+  playerStoresByCity?: Record<string, number>; // 自社の都市別出店数。指定時は自社が強い都市ほど出店拡大の重みを上げる
+}
+
+/**
+ * 出店拡大先の都市を選ぶ。playerStoresByCityが無ければ完全ランダム(従来通り)。
+ * 指定があれば「自社出店数+1」を重みとした加重抽選にし、自社の好調な都市ほど
+ * 競合に狙われやすくする(店舗単位の近接配置までは行わない近似実装)。
+ */
+function pickExpansionCity(
+  cityIds: string[],
+  playerStoresByCity: Record<string, number> | undefined,
+  rng: () => number
+): string {
+  if (!playerStoresByCity) {
+    return cityIds[Math.floor(rng() * cityIds.length) % cityIds.length];
+  }
+
+  const weights = cityIds.map((cityId) => (playerStoresByCity[cityId] ?? 0) + 1);
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = rng() * totalWeight;
+  for (let i = 0; i < cityIds.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return cityIds[i];
+  }
+  return cityIds[cityIds.length - 1];
 }
 
 export type CompetitorAction =
@@ -42,7 +67,7 @@ export function decideCompetitorAction(
   if (competitor.valuation > GROWTH_VALUATION_THRESHOLD && rng() < EXPANSION_PROBABILITY) {
     const investedAmount = competitor.valuation * 0.02;
     if (context.cityIds.length > 0 && competitor.cash >= investedAmount) {
-      const cityId = context.cityIds[Math.floor(rng() * context.cityIds.length) % context.cityIds.length];
+      const cityId = pickExpansionCity(context.cityIds, context.playerStoresByCity, rng);
       return { type: 'expand', investedAmount, cityId };
     }
   }

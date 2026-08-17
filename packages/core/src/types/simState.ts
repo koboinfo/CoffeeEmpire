@@ -88,4 +88,5 @@ export interface StockPricePoint {
 export interface NewsFeedEntry {
   turn: number;
   eventId: string;
+  storeId?: string; // 店舗ごとイベントの場合のみ設定される
 }

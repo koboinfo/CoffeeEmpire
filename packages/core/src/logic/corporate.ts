@@ -19,7 +19,7 @@ export function upgradeHeadquarters(headquarters: HeadquartersOffice): Headquart
  * 部門フロアの拡張コスト。現在レベル(未設置なら0)が高いほど次のレベルアップが高くつく。
  */
 export function calculateDepartmentUpgradeCost(currentLevel: number): number {
-  return 15000 * (currentLevel + 1);
+  return 400_000 * (currentLevel + 1);
 }
 
 /**
