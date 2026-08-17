@@ -19,6 +19,13 @@ export function GameSpeedControl() {
     try {
       for (let i = 0; i < speed; i += 1) {
         await advance();
+        // 決算・イベント通知はプレイヤーが確認するまで、バッチ内の残りターンは進めない
+        // (先に進めてしまうと latestSettlement/latestTriggeredEvents が次ターンの結果で
+        // 上書きされ、モーダルが一度も表示されないまま消えてしまうため)。
+        const { latestSettlement, latestTriggeredEvents, latestTriggeredStoreEvents } = useGameStore.getState();
+        if (latestSettlement || latestTriggeredEvents.length > 0 || latestTriggeredStoreEvents.length > 0) {
+          break;
+        }
       }
     } finally {
       setIsAdvancing(false);

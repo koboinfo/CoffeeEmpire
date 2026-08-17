@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { calculateInteriorQualityFactor, equipmentCatalog, type EquipmentTemplate, type Store } from '@coffee-empire/core';
 import { ChairIcon, EspressoMachineIcon, GearIcon } from '../../icons';
+import { GridBackdrop } from '../../components/GridBackdrop';
+import { getInteriorImage } from '../../assets/images/registry';
 import { colors } from '../../theme/theme';
 
 function formatCurrency(amount: number): string {
@@ -31,6 +33,26 @@ function categoryIcon(category: string) {
   if (category === 'furniture') return ChairIcon;
   if (category === 'espressoMachine' || category === 'roaster') return EspressoMachineIcon;
   return GearIcon;
+}
+
+/** furniture(座席・内装)は実写素材があればサムネイルに、無ければ従来のアイコン丸バッジにフォールバックする。 */
+function EquipmentThumb({ category, tier, color }: { category: string; tier: number; color: string }) {
+  const CategoryIcon = categoryIcon(category);
+  const interiorImage = category === 'furniture' ? getInteriorImage(tier) : undefined;
+
+  if (interiorImage) {
+    return (
+      <GridBackdrop image={interiorImage} style={{ height: 36, width: 36, borderRadius: 999 }}>
+        <View />
+      </GridBackdrop>
+    );
+  }
+
+  return (
+    <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: `${color}26` }}>
+      <CategoryIcon size={18} color={color} />
+    </View>
+  );
 }
 
 function TierBadge({ tier }: { tier: number }) {
@@ -71,7 +93,6 @@ export function DesignTab({ store, cash, purchaseEquipment, sellEquipment }: Des
         )}
         {store.equipment.length === 0 ? <Text className="text-xs text-text-muted">まだ機材がありません</Text> : null}
         {store.equipment.map((equipment, index) => {
-          const CategoryIcon = categoryIcon(equipment.category);
           const meta = tierMeta(equipment.tier);
           return (
             <View
@@ -79,12 +100,7 @@ export function DesignTab({ store, cash, purchaseEquipment, sellEquipment }: Des
               className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}
             >
               <View className="flex-row items-center gap-sm">
-                <View
-                  className="h-9 w-9 items-center justify-center rounded-full"
-                  style={{ backgroundColor: `${meta.color}26` }}
-                >
-                  <CategoryIcon size={18} color={meta.color} />
-                </View>
+                <EquipmentThumb category={equipment.category} tier={equipment.tier} color={meta.color} />
                 <View className="gap-[2px]">
                   <Text className="text-sm text-text-primary">{equipment.category}</Text>
                   <TierBadge tier={equipment.tier} />
@@ -102,7 +118,6 @@ export function DesignTab({ store, cash, purchaseEquipment, sellEquipment }: Des
         <SectionLabel icon={<EspressoMachineIcon size={15} color={colors.roastLight} />} label="機材カタログ(購入・入れ替え)" />
         {equipmentCatalog.map((template, index) => {
           const affordable = cash >= template.purchaseCost;
-          const CategoryIcon = categoryIcon(template.category);
           const meta = tierMeta(template.tier);
           return (
             <Pressable
@@ -112,9 +127,7 @@ export function DesignTab({ store, cash, purchaseEquipment, sellEquipment }: Des
               onPress={() => purchaseEquipment(store.id, template)}
             >
               <View className="flex-row items-center gap-sm">
-                <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: `${meta.color}26` }}>
-                  <CategoryIcon size={18} color={meta.color} />
-                </View>
+                <EquipmentThumb category={template.category} tier={template.tier} color={meta.color} />
                 <View className="gap-[2px]">
                   <Text className="text-sm text-text-primary">{template.name}</Text>
                   <TierBadge tier={template.tier} />

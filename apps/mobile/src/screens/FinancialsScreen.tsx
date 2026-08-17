@@ -1,10 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { IncomeStatement } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { LineChart } from '../components/LineChart';
+import { AppButton } from '../components/AppButton';
 import { ChartIcon, TrendingIcon } from '../icons';
 import { colors } from '../theme/theme';
+import type { RootStackParamList } from '../navigation/RootNavigator';
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 const BASE_YEAR = 2026;
 
@@ -69,6 +75,7 @@ function PLRow({ label, value, emphasis }: { label: string; value: number; empha
 }
 
 export function FinancialsScreen() {
+  const navigation = useNavigation<Navigation>();
   const { state } = useGameStore();
   const statements = state.history.incomeStatements;
   const latestBalanceSheet = state.history.balanceSheets[state.history.balanceSheets.length - 1];
@@ -91,6 +98,13 @@ export function FinancialsScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
       <Text className="text-xl font-bold text-text-primary">財務諸表</Text>
+
+      <AppButton
+        label="詳細コスト内訳を見る(家賃・人件費・原価など)"
+        icon="pie-chart"
+        variant="secondary"
+        onPress={() => navigation.navigate('FinancialBreakdown')}
+      />
 
       <View className="gap-sm rounded-md border border-border bg-surface p-md">
         <View className="flex-row items-center gap-xs">

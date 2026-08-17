@@ -86,6 +86,49 @@ export function calculatePL(items: PLLineItem[]): { revenue: number; costs: numb
   return { revenue, costs, profit: revenue - costs };
 }
 
+export interface ExpenseCategory {
+  key: 'rent' | 'labor' | 'utilities' | 'cogs' | 'other';
+  label: string;
+  amount: number;
+}
+
+export interface ExpenseBreakdown {
+  categories: ExpenseCategory[];
+  total: number;
+}
+
+/**
+ * 毎月のキャッシュアウトを「家賃/人件費/水道光熱費/原価/税金・その他」の5カテゴリに集計する。
+ * extraOther(決算の一括納税額・イベントによる臨時収支など、plItemsに含まれない項目)は
+ * 「税金・その他」に合算する。
+ */
+export function categorizeExpenses(items: PLLineItem[], extraOther = 0): ExpenseBreakdown {
+  let rent = 0;
+  let labor = 0;
+  let utilities = 0;
+  let cogs = 0;
+  let other = extraOther;
+
+  for (const item of items) {
+    if (item.kind === 'revenue') continue;
+    if (item.key.startsWith('rent:')) rent += item.amount;
+    else if (item.key.startsWith('cogs:')) cogs += item.amount;
+    else if (item.key.startsWith('utilities:')) utilities += item.amount;
+    else if (item.key === 'payroll' || item.key === 'employerSocialInsurance') labor += item.amount;
+    else other += item.amount;
+  }
+
+  const categories: ExpenseCategory[] = [
+    { key: 'rent', label: '家賃', amount: rent },
+    { key: 'labor', label: '人件費', amount: labor },
+    { key: 'utilities', label: '水道光熱費', amount: utilities },
+    { key: 'cogs', label: '豆の仕入れ原価', amount: cogs },
+    { key: 'other', label: '税金・その他', amount: other },
+  ];
+
+  return { categories, total: categories.reduce((sum, category) => sum + category.amount, 0) };
+}
+
 export function calculateTax(pretaxIncome: number, taxRule: TaxRule): number {
   return Math.max(0, pretaxIncome) * taxRule.corporateTaxRate;
 }

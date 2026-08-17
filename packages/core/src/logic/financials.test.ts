@@ -9,6 +9,7 @@ import {
   calculateInteriorQualityFactor,
   calculatePayroll,
   calculatePL,
+  categorizeExpenses,
   calculateTax,
   buildIncomeStatement,
   buildBalanceSheet,
@@ -121,6 +122,34 @@ test('calculatePL: 基盤④README準拠でrevenue/costs/profitを返す', () =>
   ];
   const result = calculatePL(items);
   assert.deepEqual(result, { revenue: 1000, costs: 500, profit: 500 });
+});
+
+test('categorizeExpenses: key接頭辞ごとにrent/cogs/utilitiesへ、payroll系はlaborへ、revenueは除外して集計する', () => {
+  const items: PLLineItem[] = [
+    { key: 'revenue:store-1', label: '売上', amount: 1000, kind: 'revenue' },
+    { key: 'rent:store-1', label: '賃料', amount: 100, kind: 'fixedCost' },
+    { key: 'rent:store-2', label: '賃料', amount: 150, kind: 'fixedCost' },
+    { key: 'cogs:store-1', label: '原材料費', amount: 200, kind: 'variableCost' },
+    { key: 'utilities:store-1', label: '水道光熱費', amount: 50, kind: 'fixedCost' },
+    { key: 'payroll', label: '人件費', amount: 300, kind: 'fixedCost' },
+    { key: 'employerSocialInsurance', label: '社会保険料', amount: 40, kind: 'fixedCost' },
+    { key: 'marketing:camp-1', label: 'マーケティング費', amount: 60, kind: 'fixedCost' },
+  ];
+  const result = categorizeExpenses(items);
+  const byKey = Object.fromEntries(result.categories.map((c) => [c.key, c.amount]));
+  assert.equal(byKey.rent, 250);
+  assert.equal(byKey.labor, 340);
+  assert.equal(byKey.utilities, 50);
+  assert.equal(byKey.cogs, 200);
+  assert.equal(byKey.other, 60);
+  assert.equal(result.total, 250 + 340 + 50 + 200 + 60);
+});
+
+test('categorizeExpenses: extraOtherは税金・その他に合算される', () => {
+  const items: PLLineItem[] = [{ key: 'rent:store-1', label: '賃料', amount: 100, kind: 'fixedCost' }];
+  const result = categorizeExpenses(items, 70_000);
+  const other = result.categories.find((c) => c.key === 'other');
+  assert.equal(other?.amount, 70_000);
 });
 
 test('calculateTax: 赤字時は非課税', () => {

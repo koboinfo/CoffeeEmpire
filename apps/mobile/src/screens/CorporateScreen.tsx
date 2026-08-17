@@ -28,6 +28,8 @@ import {
 import { useGameStore } from '../state/gameStore';
 import { AppButton } from '../components/AppButton';
 import { DonutChart } from '../components/DonutChart';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { getCityImage } from '../assets/images/registry';
 import { CheckCircleIcon, WarningIcon } from '../icons';
 import { colors } from '../theme/theme';
 
@@ -233,10 +235,17 @@ export function CorporateScreen() {
 
   const stageMeta = ENTITY_STAGE_META[state.entityType];
 
-  return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
-      <Text className="text-xl font-bold text-text-primary">企業統治</Text>
+  const headquartersImage = getCityImage(HEADQUARTERS_CITY_ID);
 
+  return (
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md pb-xl">
+      <GridBackdrop image={headquartersImage} className="justify-end p-md" style={{ height: 96 }}>
+        <Text className="text-xl font-bold text-text-primary" style={{ textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 }}>
+          企業統治
+        </Text>
+      </GridBackdrop>
+
+      <View className="gap-md px-md">
       <View className="flex-row flex-wrap gap-xs">
         {TABS.map((dept) => {
           const active = dept.key === activeDept;
@@ -666,6 +675,7 @@ export function CorporateScreen() {
           ))}
         </>
       ) : null}
+      </View>
     </ScrollView>
   );
 }

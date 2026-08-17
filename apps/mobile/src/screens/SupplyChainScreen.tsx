@@ -5,7 +5,18 @@ import { calculateFarmAcquisitionPrice, farms, type RoastLevel } from '@coffee-e
 import { useGameStore } from '../state/gameStore';
 import { Card } from '../components/Card';
 import { AppButton } from '../components/AppButton';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { getOriginImage } from '../assets/images/registry';
 import { colors, spacing, radius, typography } from '../theme/theme';
+
+function OriginThumb({ country }: { country: string }) {
+  const originImage = getOriginImage(country);
+  return (
+    <GridBackdrop image={originImage} style={styles.originThumb}>
+      <Ionicons name="leaf" size={14} color={colors.roastLight} />
+    </GridBackdrop>
+  );
+}
 
 function formatCurrency(amount: number): string {
   return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
@@ -75,10 +86,15 @@ export function SupplyChainScreen() {
         <SectionLabel icon="leaf" label="農園から生豆を仕入れる" />
         {farms.map((farm) => (
           <View key={farm.id} style={styles.farmRow}>
-            <Text style={styles.rowLabel}>
-              {farm.country} (Q{farm.qGrade}) {formatCurrency(farm.pricePerKg)}/kg
-            </Text>
-            <Text style={styles.subLabel}>供給安定性 {farm.reliability}%</Text>
+            <View style={styles.farmRowHeader}>
+              <OriginThumb country={farm.country} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>
+                  {farm.country} (Q{farm.qGrade}) {formatCurrency(farm.pricePerKg)}/kg
+                </Text>
+                <Text style={styles.subLabel}>供給安定性 {farm.reliability}%</Text>
+              </View>
+            </View>
             <View style={styles.presetRow}>
               {KG_PRESETS.map((kg) => (
                 <Pressable key={kg} style={styles.presetButton} onPress={() => purchaseBeans(farm.id, kg)}>
@@ -96,7 +112,10 @@ export function SupplyChainScreen() {
           const farm = farms.find((f) => f.id === ownedFarm.farmId);
           return (
             <View key={ownedFarm.id} style={styles.catalogRow}>
-              <Text style={styles.rowLabel}>{farm?.country ?? ownedFarm.farmId}</Text>
+              <View style={styles.farmRowHeader}>
+                {farm ? <OriginThumb country={farm.country} /> : null}
+                <Text style={styles.rowLabel}>{farm?.country ?? ownedFarm.farmId}</Text>
+              </View>
               {ownedFarm.lastHarvestFailed ? (
                 <View style={styles.failureBadge}>
                   <Ionicons name="warning" size={12} color={colors.negative} />
@@ -236,6 +255,8 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   subLabel: { fontSize: 12, color: colors.textMuted },
   farmRow: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
+  farmRowHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  originThumb: { height: 32, width: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   presetRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
   presetButton: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, alignItems: 'center' },
   presetButtonText: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },

@@ -4,6 +4,8 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { TabBar, type TabBarItem } from '../components/TabBar';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { getCityImage } from '../assets/images/registry';
 import { OverviewTab } from './store-detail/OverviewTab';
 import { OperationsTab } from './store-detail/OperationsTab';
 import { DesignTab } from './store-detail/DesignTab';
@@ -26,6 +28,7 @@ export function StoreDetailScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
   const store = useGameStore((s) => s.state.stores.find((st) => st.id === storeId));
+  const properties = useGameStore((s) => s.properties);
   const cash = useGameStore((s) => s.state.cash);
   const turn = useGameStore((s) => s.state.turn);
   const employees = useGameStore((s) => s.state.employees);
@@ -50,11 +53,18 @@ export function StoreDetailScreen() {
   }
 
   const storeEmployees = employees.filter((employee) => store.employeeIds.includes(employee.id));
+  const property = properties.find((p) => p.id === store.propertyId);
+  const cityImage = property ? getCityImage(property.cityId) : undefined;
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
-      <Text className="text-xl font-bold text-text-primary">{store.name}</Text>
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md pb-xl">
+      <GridBackdrop image={cityImage} className="justify-end p-md" style={{ height: 96 }}>
+        <Text className="text-xl font-bold text-text-primary" style={{ textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 }}>
+          {store.name}
+        </Text>
+      </GridBackdrop>
 
+      <View className="gap-md px-md">
       <TabBar items={TABS} activeKey={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'overview' ? (
@@ -84,6 +94,7 @@ export function StoreDetailScreen() {
           trainEmployee={trainEmployee}
         />
       ) : null}
+      </View>
     </ScrollView>
   );
 }

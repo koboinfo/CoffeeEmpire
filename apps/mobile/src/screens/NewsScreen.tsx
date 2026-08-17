@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useGameStore } from '../state/gameStore';
 import { getEventNews } from '../data/eventNews';
 import { Card } from '../components/Card';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { getNewsImage } from '../assets/images/registry';
 import { colors, spacing, typography } from '../theme/theme';
 
 export function NewsScreen() {
@@ -24,14 +26,21 @@ export function NewsScreen() {
           renderItem={({ item }) => {
             const news = getEventNews(item.eventId);
             const storeName = item.storeId ? storeNameById.get(item.storeId) : undefined;
+            const newsImage = getNewsImage(item.eventId);
             return (
               <Card style={styles.card}>
-                <View style={styles.row}>
-                  <Ionicons name={news.icon} size={16} color={colors.roastLight} />
-                  <Text style={styles.turnLabel}>T{item.turn}</Text>
-                  {storeName ? <Text style={styles.storeBadge}>{storeName}</Text> : null}
+                <View style={styles.cardBody}>
+                  <GridBackdrop image={newsImage} style={styles.thumb}>
+                    <Ionicons name={news.icon} size={16} color={colors.roastLight} />
+                  </GridBackdrop>
+                  <View style={styles.textColumn}>
+                    <View style={styles.row}>
+                      <Text style={styles.turnLabel}>T{item.turn}</Text>
+                      {storeName ? <Text style={styles.storeBadge}>{storeName}</Text> : null}
+                    </View>
+                    <Text style={styles.headline}>{news.headline}</Text>
+                  </View>
                 </View>
-                <Text style={styles.headline}>{news.headline}</Text>
               </Card>
             );
           }}
@@ -45,6 +54,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, gap: spacing.sm },
   card: { gap: 4 },
+  cardBody: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  thumb: { height: 44, width: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  textColumn: { flex: 1, gap: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   turnLabel: { ...typography.label, color: colors.textMuted },
   storeBadge: {

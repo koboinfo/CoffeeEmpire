@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { FinancialsScreen } from '../screens/FinancialsScreen';
+import { FinancialBreakdownScreen } from '../screens/FinancialBreakdownScreen';
 import { MapScreen } from '../screens/MapScreen';
 import { StoreListScreen } from '../screens/StoreListScreen';
 import { NewStoreScreen } from '../screens/NewStoreScreen';
@@ -24,8 +26,9 @@ export type TabParamList = {
 };
 
 export type RootStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<TabParamList> | undefined;
   Financials: undefined;
+  FinancialBreakdown: undefined;
   NewStore: { cityId?: string } | undefined;
   StoreDetail: { storeId: string };
   RealEstate: undefined;
@@ -95,6 +98,11 @@ export function RootNavigator() {
     >
       <Stack.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="Financials" component={FinancialsScreen} options={{ title: '財務諸表' }} />
+      <Stack.Screen
+        name="FinancialBreakdown"
+        component={FinancialBreakdownScreen}
+        options={{ title: '詳細コスト内訳' }}
+      />
       <Stack.Screen name="NewStore" component={NewStoreScreen} options={{ title: '新規出店' }} />
       <Stack.Screen name="StoreDetail" component={StoreDetailScreen} options={{ title: '店舗詳細' }} />
       <Stack.Screen name="RealEstate" component={RealEstateScreen} options={{ title: '不動産投資' }} />

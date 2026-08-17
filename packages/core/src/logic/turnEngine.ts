@@ -52,6 +52,8 @@ export interface AdvanceTurnResult {
   triggeredStoreEvents: TriggeredStoreEvent[];
   storeReports: Record<string, StoreReport>;
   settlement?: SettlementResult; // 決算ターン(SETTLEMENT_INTERVAL_TURNSごと)のみ設定される
+  plItems: PLLineItem[];
+  eventCashEffect: number;
 }
 
 /**
@@ -413,5 +415,7 @@ export function advanceTurn(
     triggeredEvents,
     triggeredStoreEvents,
     storeReports,
+    plItems,
+    eventCashEffect,
   };
 }

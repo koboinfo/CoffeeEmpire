@@ -12,6 +12,7 @@ import {
   type CashFlowStatement,
   type CoffeeEmpireState,
   type IncomeStatement,
+  type PLLineItem,
   type Property,
   type SettlementResult,
   type SimEvent,
@@ -44,6 +45,8 @@ export interface CoreSlice {
   latestTriggeredEvents: SimEvent[];
   latestTriggeredStoreEvents: TriggeredStoreEvent[];
   latestSettlement: SettlementResult | null;
+  latestPLItems: PLLineItem[];
+  latestEventCashEffect: number;
   isHydrated: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
@@ -65,6 +68,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   latestTriggeredEvents: [],
   latestTriggeredStoreEvents: [],
   latestSettlement: null,
+  latestPLItems: [],
+  latestEventCashEffect: 0,
   isHydrated: false,
   error: null,
 
@@ -87,6 +92,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         triggeredEvents,
         triggeredStoreEvents,
         settlement,
+        plItems,
+        eventCashEffect,
       } = advanceTurn(
         state,
         turnContext,
@@ -139,6 +146,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         latestTriggeredEvents: triggeredEvents,
         latestTriggeredStoreEvents: triggeredStoreEvents,
         latestSettlement: settlement ?? null,
+        latestPLItems: plItems,
+        latestEventCashEffect: eventCashEffect,
         error: null,
       });
       await saveState(updatedState);
@@ -167,6 +176,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
       latestTriggeredEvents: [],
       latestTriggeredStoreEvents: [],
       latestSettlement: null,
+      latestPLItems: [],
+      latestEventCashEffect: 0,
       error: null,
     });
   },
