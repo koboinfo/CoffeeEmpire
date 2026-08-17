@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, Pressable, ScrollView, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,10 +19,9 @@ import {
   type ResearchBranch,
 } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
-import { Card } from '../components/Card';
 import { AppButton } from '../components/AppButton';
 import { DonutChart } from '../components/DonutChart';
-import { colors, spacing, radius, typography } from '../theme/theme';
+import { colors } from '../theme/theme';
 
 function formatCurrency(amount: number): string {
   return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
@@ -87,10 +86,36 @@ const RESEARCH_BRANCHES: ResearchBranch[] = ['app', 'eco', 'machine'];
 
 function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
   return (
-    <View style={styles.sectionHeader}>
+    <View className="mb-xs flex-row items-center gap-xs">
       <Ionicons name={icon} size={15} color={colors.roastLight} />
-      <Text style={styles.cardLabel}>{label}</Text>
+      <Text className="text-[13px] font-medium text-text-secondary">{label}</Text>
     </View>
+  );
+}
+
+function CardBox({ children }: { children: React.ReactNode }) {
+  return <View className="gap-xs rounded-md border border-border bg-surface p-md">{children}</View>;
+}
+
+function CatalogRow({
+  index,
+  disabled,
+  onPress,
+  children,
+}: {
+  index: number;
+  disabled?: boolean;
+  onPress?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'} ${disabled ? 'opacity-40' : ''}`}
+      disabled={disabled}
+      onPress={onPress}
+    >
+      {children}
+    </Pressable>
   );
 }
 
@@ -154,20 +179,21 @@ export function CorporateScreen() {
     : 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>企業統治</Text>
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
+      <Text className="text-xl font-bold text-text-primary">企業統治</Text>
 
-      <View style={styles.deptRow}>
+      <View className="flex-row flex-wrap gap-xs">
         {TABS.map((dept) => {
           const active = dept.key === activeDept;
           return (
             <Pressable
               key={dept.key}
-              style={[styles.deptTab, active && styles.deptTabActive]}
+              className={`items-center gap-[2px] rounded-sm border py-sm ${active ? 'border-roast-dark bg-roast' : 'border-border bg-surface'}`}
+              style={{ flexGrow: 1, flexBasis: '30%' }}
               onPress={() => setActiveDept(dept.key)}
             >
               <Ionicons name={dept.icon} size={18} color={active ? colors.white : colors.textSecondary} />
-              <Text style={[styles.deptTabLabel, active && styles.deptTabLabelActive]}>{dept.label}</Text>
+              <Text className={`text-[11px] font-semibold ${active ? 'text-white' : 'text-text-secondary'}`}>{dept.label}</Text>
             </Pressable>
           );
         })}
@@ -175,7 +201,7 @@ export function CorporateScreen() {
 
       {activeDept === 'hq' ? (
         <>
-          <Card>
+          <CardBox>
             <SectionLabel icon="bar-chart" label="財務諸表" />
             <AppButton
               label="P&L・貸借対照表を見る"
@@ -183,14 +209,14 @@ export function CorporateScreen() {
               variant="secondary"
               onPress={() => navigation.navigate('Financials')}
             />
-          </Card>
+          </CardBox>
 
-          <Card>
+          <CardBox>
             <SectionLabel icon="business" label="本社オフィス" />
             {state.headquarters ? (
               <>
-                <Text style={styles.rowLabel}>拡張レベル {state.headquarters.sizeTier}</Text>
-                <Text style={styles.rowLabel}>賃料 {formatCurrency(state.headquarters.rentPerMonth)} / 月</Text>
+                <Text className="text-sm text-text-primary">拡張レベル {state.headquarters.sizeTier}</Text>
+                <Text className="text-sm text-text-primary">賃料 {formatCurrency(state.headquarters.rentPerMonth)} / 月</Text>
                 <AppButton
                   label={`本社を拡張する(${formatCurrency(state.headquarters.sizeTier * HQ_UPGRADE_COST_PER_TIER)})`}
                   icon="arrow-up-circle"
@@ -200,78 +226,85 @@ export function CorporateScreen() {
             ) : (
               <AppButton label="本社を設立する(¥800,000)" icon="business" onPress={() => establishHeadquarters(HEADQUARTERS_CITY_ID)} />
             )}
-          </Card>
+          </CardBox>
 
           {state.headquarters ? (
-            <Card>
+            <CardBox>
               <SectionLabel icon="layers" label="部門フロア" />
-              {DEPARTMENT_ORDER.map((dept) => {
+              {DEPARTMENT_ORDER.map((dept, index) => {
                 const level = state.headquarters?.departments[dept]?.level ?? 0;
                 const cost = calculateDepartmentUpgradeCost(level);
                 const affordable = state.cash >= cost;
                 return (
-                  <View key={dept} style={styles.catalogRow}>
-                    <View style={styles.deptFloorLabel}>
+                  <View
+                    key={dept}
+                    className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}
+                  >
+                    <View className="flex-row items-center gap-xs">
                       <Ionicons name={DEPARTMENT_ICONS[dept]} size={16} color={colors.roastLight} />
-                      <Text style={styles.rowLabel}>
+                      <Text className="text-sm text-text-primary">
                         {DEPARTMENT_LABELS[dept]}フロア(Lv{level})
                       </Text>
                     </View>
                     <Pressable
-                      style={[styles.smallButton, !affordable && styles.catalogRowDisabled]}
+                      className={`rounded-sm bg-surface-alt px-sm py-[6px] ${affordable ? '' : 'opacity-40'}`}
                       disabled={!affordable}
                       onPress={() => upgradeDepartmentAction(dept)}
                     >
-                      <Text style={styles.smallButtonText}>拡張({formatCurrency(cost)})</Text>
+                      <Text className="text-[11px] font-semibold text-text-primary">拡張({formatCurrency(cost)})</Text>
                     </Pressable>
                   </View>
                 );
               })}
-            </Card>
+            </CardBox>
           ) : null}
         </>
       ) : null}
 
       {activeDept === 'exec' ? (
         <>
-          <Card>
+          <CardBox>
             <SectionLabel icon="people-circle" label={`Cクラス役員(${executives.length}名)`} />
             {executives.map((executive) => (
-              <Text key={executive.id} style={styles.rowLabel}>
+              <Text key={executive.id} className="text-sm text-text-primary">
                 {executive.name}({executive.executiveTitle}) スキル{executive.skillLevel} / 給与
                 {formatCurrency(executive.salaryPerMonth)}
               </Text>
             ))}
-            <View style={styles.titleButtonRow}>
+            <View className="mt-xs flex-row gap-sm">
               {EXECUTIVE_TITLES.map((title) => (
-                <Pressable key={title} style={styles.titleButton} onPress={() => setSelectedTitle(title)}>
-                  <Text style={styles.titleButtonText}>{title}</Text>
+                <Pressable
+                  key={title}
+                  className="flex-1 items-center rounded-sm bg-surface-alt p-sm"
+                  onPress={() => setSelectedTitle(title)}
+                >
+                  <Text className="text-xs font-semibold text-text-primary">{title}</Text>
                 </Pressable>
               ))}
             </View>
             {candidates.map((candidate) => (
               <Pressable
                 key={candidate.id}
-                style={styles.catalogRow}
+                className="flex-row items-center justify-between border-t border-border py-sm"
                 onPress={() => {
                   hireExecutive(candidate);
                   setSelectedTitle(null);
                 }}
               >
-                <Text style={styles.rowLabel}>{candidate.name}</Text>
-                <Text style={styles.rowValue}>
+                <Text className="text-sm text-text-primary">{candidate.name}</Text>
+                <Text className="text-sm font-semibold text-text-primary">
                   スキル{candidate.skillLevel} / {formatCurrency(candidate.salaryPerMonth)}
                 </Text>
               </Pressable>
             ))}
-          </Card>
+          </CardBox>
 
-          <Card>
+          <CardBox>
             <SectionLabel icon="options" label="権限委譲(自動化)" />
-            <View style={styles.automationRow}>
-              <View style={styles.automationLabel}>
-                <Text style={styles.rowLabel}>CFO: 自動価格調整</Text>
-                <Text style={styles.subLabel}>{hasExecutive('CFO') ? '雇用中' : '未雇用(効果なし)'}</Text>
+            <View className="flex-row items-center justify-between border-t border-border py-sm">
+              <View className="gap-[2px]">
+                <Text className="text-sm text-text-primary">CFO: 自動価格調整</Text>
+                <Text className="text-xs text-text-muted">{hasExecutive('CFO') ? '雇用中' : '未雇用(効果なし)'}</Text>
               </View>
               <Switch
                 value={state.executiveAutomation.autoPricing}
@@ -279,10 +312,10 @@ export function CorporateScreen() {
                 trackColor={{ true: colors.roast, false: colors.surfaceAlt }}
               />
             </View>
-            <View style={styles.automationRow}>
-              <View style={styles.automationLabel}>
-                <Text style={styles.rowLabel}>COO: 自動採用</Text>
-                <Text style={styles.subLabel}>{hasExecutive('COO') ? '雇用中' : '未雇用(効果なし)'}</Text>
+            <View className="flex-row items-center justify-between border-t border-border py-sm">
+              <View className="gap-[2px]">
+                <Text className="text-sm text-text-primary">COO: 自動採用</Text>
+                <Text className="text-xs text-text-muted">{hasExecutive('COO') ? '雇用中' : '未雇用(効果なし)'}</Text>
               </View>
               <Switch
                 value={state.executiveAutomation.autoHiring}
@@ -290,10 +323,10 @@ export function CorporateScreen() {
                 trackColor={{ true: colors.roast, false: colors.surfaceAlt }}
               />
             </View>
-            <View style={styles.automationRow}>
-              <View style={styles.automationLabel}>
-                <Text style={styles.rowLabel}>CMO: 自動宣伝</Text>
-                <Text style={styles.subLabel}>{hasExecutive('CMO') ? '雇用中' : '未雇用(効果なし)'}</Text>
+            <View className="flex-row items-center justify-between border-t border-border py-sm">
+              <View className="gap-[2px]">
+                <Text className="text-sm text-text-primary">CMO: 自動宣伝</Text>
+                <Text className="text-xs text-text-muted">{hasExecutive('CMO') ? '雇用中' : '未雇用(効果なし)'}</Text>
               </View>
               <Switch
                 value={state.executiveAutomation.autoMarketing}
@@ -301,66 +334,61 @@ export function CorporateScreen() {
                 trackColor={{ true: colors.roast, false: colors.surfaceAlt }}
               />
             </View>
-          </Card>
+          </CardBox>
         </>
       ) : null}
 
       {activeDept === 'marketing' ? (
-        <Card>
+        <CardBox>
           <SectionLabel icon="megaphone" label="ブランド認知度" />
           <Gauge label="Brand Awareness" value={state.statuses.brandAwareness?.value ?? 0} color={colors.gold} />
-        </Card>
+        </CardBox>
       ) : null}
 
       {activeDept === 'marketing' ? (
-        <Card>
+        <CardBox>
           <SectionLabel icon="rocket" label="マーケティングキャンペーン" />
           {state.activeCampaigns.map((campaign) => (
-            <Text key={campaign.id} style={styles.rowLabel}>
+            <Text key={campaign.id} className="text-sm text-text-primary">
               {campaign.type} — 残り{campaign.durationTurns - (state.turn - campaign.startedAtTurn)}ターン
             </Text>
           ))}
-          {marketingCampaignPresets.map((preset) => (
-            <Pressable key={preset.type} style={styles.catalogRow} onPress={() => launchCampaign(preset)}>
-              <Text style={styles.rowLabel}>{preset.label}</Text>
-              <Text style={styles.rowValue}>
+          {marketingCampaignPresets.map((preset, index) => (
+            <CatalogRow key={preset.type} index={index} onPress={() => launchCampaign(preset)}>
+              <Text className="text-sm text-text-primary">{preset.label}</Text>
+              <Text className="text-sm font-semibold text-text-primary">
                 {formatCurrency(preset.budget)}/月 x {preset.durationTurns}ターン
               </Text>
-            </Pressable>
+            </CatalogRow>
           ))}
-        </Card>
+        </CardBox>
       ) : null}
 
       {activeDept === 'ipo' ? (
-        <Card>
+        <CardBox>
           <SectionLabel icon="trending-up" label="IPO・株式" />
           {state.stock.isPublic ? (
             <>
               {state.history.stockPrices.length >= 2 ? (
-                <LineChart
-                  values={state.history.stockPrices.map((point) => point.sharePrice)}
-                  color={colors.gold}
-                />
+                <LineChart values={state.history.stockPrices.map((point) => point.sharePrice)} color={colors.gold} />
               ) : null}
-              <Text style={styles.rowLabel}>株価 {formatCurrency(state.stock.sharePrice)}</Text>
-              <Text style={styles.rowLabel}>発行済株式数 {state.stock.totalShares.toLocaleString('ja-JP')}</Text>
-              <Text style={styles.rowLabel}>浮動株数 {state.stock.publicFloatShares.toLocaleString('ja-JP')}</Text>
-              <Text style={styles.rowLabel}>市場シェア(概算) {Math.round(marketShareRatio * 100)}%</Text>
-              <Text style={styles.rowLabel}>
-                配当 {state.stock.dividendPerSharePerTurn.toFixed(1)} / 株 / ターン
-              </Text>
-              <View style={styles.stepper}>
+              <Text className="text-sm text-text-primary">株価 {formatCurrency(state.stock.sharePrice)}</Text>
+              <Text className="text-sm text-text-primary">発行済株式数 {state.stock.totalShares.toLocaleString('ja-JP')}</Text>
+              <Text className="text-sm text-text-primary">浮動株数 {state.stock.publicFloatShares.toLocaleString('ja-JP')}</Text>
+              <Text className="text-sm text-text-primary">市場シェア(概算) {Math.round(marketShareRatio * 100)}%</Text>
+              <Text className="text-sm text-text-primary">配当 {state.stock.dividendPerSharePerTurn.toFixed(1)} / 株 / ターン</Text>
+              <View className="flex-row gap-sm">
                 <Pressable
-                  style={styles.stepperButton}
+                  className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt"
                   onPress={() => setDividendPerShare(state.stock.dividendPerSharePerTurn - 0.1)}
                 >
-                  <Text style={styles.stepperButtonText}>-</Text>
+                  <Text className="text-base font-bold text-text-primary">-</Text>
                 </Pressable>
                 <Pressable
-                  style={styles.stepperButton}
+                  className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt"
                   onPress={() => setDividendPerShare(state.stock.dividendPerSharePerTurn + 0.1)}
                 >
-                  <Text style={styles.stepperButtonText}>+</Text>
+                  <Text className="text-base font-bold text-text-primary">+</Text>
                 </Pressable>
               </View>
               <AppButton
@@ -378,58 +406,53 @@ export function CorporateScreen() {
               onPress={() => executeIPO(IPO_SHARE_PRICE, IPO_TOTAL_SHARES, IPO_PUBLIC_FLOAT_SHARES)}
             />
           )}
-        </Card>
+        </CardBox>
       ) : null}
 
       {activeDept === 'loans' ? (
         <>
-          <Card>
+          <CardBox>
             <SectionLabel icon="wallet" label={`借入中(${state.loans.length}件)`} />
             {state.loans.length === 0 ? (
-              <Text style={styles.subLabel}>現在借入はありません</Text>
+              <Text className="text-xs text-text-muted">現在借入はありません</Text>
             ) : (
-              state.loans.map((loan) => (
-                <View key={loan.id} style={styles.catalogRow}>
-                  <Text style={styles.rowLabel}>残高 {formatCurrency(loan.remainingPrincipal)}</Text>
-                  <Text style={styles.rowValue}>
+              state.loans.map((loan, index) => (
+                <View key={loan.id} className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                  <Text className="text-sm text-text-primary">残高 {formatCurrency(loan.remainingPrincipal)}</Text>
+                  <Text className="text-sm font-semibold text-text-primary">
                     {formatCurrency(loan.monthlyPayment)}/月 (金利{Math.round(loan.annualInterestRate * 100)}%)
                   </Text>
                 </View>
               ))
             )}
-          </Card>
-          <Card>
+          </CardBox>
+          <CardBox>
             <SectionLabel icon="cash" label="銀行融資を申し込む" />
-            {LOAN_PRESETS.map((preset) => (
-              <Pressable
-                key={preset.label}
-                style={styles.catalogRow}
-                onPress={() => takeLoan(preset.principal, preset.annualInterestRate, preset.termTurns)}
-              >
-                <Text style={styles.rowLabel}>{preset.label}</Text>
-                <Text style={styles.rowValue}>
-                  {formatCurrency(preset.principal)} / 金利{Math.round(preset.annualInterestRate * 100)}% /{' '}
-                  {preset.termTurns}ターン
+            {LOAN_PRESETS.map((preset, index) => (
+              <CatalogRow key={preset.label} index={index} onPress={() => takeLoan(preset.principal, preset.annualInterestRate, preset.termTurns)}>
+                <Text className="text-sm text-text-primary">{preset.label}</Text>
+                <Text className="text-sm font-semibold text-text-primary">
+                  {formatCurrency(preset.principal)} / 金利{Math.round(preset.annualInterestRate * 100)}% / {preset.termTurns}ターン
                 </Text>
-              </Pressable>
+              </CatalogRow>
             ))}
-          </Card>
+          </CardBox>
         </>
       ) : null}
 
       {activeDept === 'ma' ? (
         <>
-          <Card>
+          <CardBox>
             <SectionLabel icon="pie-chart" label="市場シェア(全都市合算・出店数ベース)" />
             {shareDonutTotal > 0 ? (
-              <View style={styles.donutRow}>
+              <View className="flex-row items-center gap-md py-sm">
                 <DonutChart data={shareDonutData} />
-                <View style={styles.legend}>
+                <View className="flex-1 gap-xs">
                   {shareDonutData.map((slice) => (
-                    <View key={slice.label} style={styles.legendRow}>
-                      <View style={[styles.legendDot, { backgroundColor: slice.color }]} />
-                      <Text style={styles.legendLabel}>{slice.label}</Text>
-                      <Text style={styles.legendValue}>
+                    <View key={slice.label} className="flex-row items-center gap-xs">
+                      <View className="h-[10px] w-[10px] rounded-full" style={{ backgroundColor: slice.color }} />
+                      <Text className="flex-1 text-[13px] text-text-primary">{slice.label}</Text>
+                      <Text className="text-[13px] font-semibold text-text-secondary">
                         {Math.round((slice.value / shareDonutTotal) * 100)}%
                       </Text>
                     </View>
@@ -437,67 +460,62 @@ export function CorporateScreen() {
                 </View>
               </View>
             ) : (
-              <Text style={styles.subLabel}>まだどのブランドも出店していません</Text>
+              <Text className="text-xs text-text-muted">まだどのブランドも出店していません</Text>
             )}
-          </Card>
-          <Card>
-          <SectionLabel icon="git-merge" label="競合ブランド買収(M&A)" />
-          {donutData.length > 0 ? (
-            <View style={styles.donutRow}>
-              <DonutChart data={donutData} />
-              <View style={styles.legend}>
-                {donutData.map((slice) => (
-                  <View key={slice.label} style={styles.legendRow}>
-                    <View style={[styles.legendDot, { backgroundColor: slice.color }]} />
-                    <Text style={styles.legendLabel}>{slice.label}</Text>
-                    <Text style={styles.legendValue}>
-                      {donutTotal > 0 ? Math.round((slice.value / donutTotal) * 100) : 0}%
-                    </Text>
-                  </View>
-                ))}
+          </CardBox>
+          <CardBox>
+            <SectionLabel icon="git-merge" label="競合ブランド買収(M&A)" />
+            {donutData.length > 0 ? (
+              <View className="flex-row items-center gap-md py-sm">
+                <DonutChart data={donutData} />
+                <View className="flex-1 gap-xs">
+                  {donutData.map((slice) => (
+                    <View key={slice.label} className="flex-row items-center gap-xs">
+                      <View className="h-[10px] w-[10px] rounded-full" style={{ backgroundColor: slice.color }} />
+                      <Text className="flex-1 text-[13px] text-text-primary">{slice.label}</Text>
+                      <Text className="text-[13px] font-semibold text-text-secondary">
+                        {donutTotal > 0 ? Math.round((slice.value / donutTotal) * 100) : 0}%
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
-          ) : null}
-          {state.competitorBrands.map((competitor) => {
-            const price = calculateAcquisitionPrice(competitor);
-            const affordable = state.cash >= price;
-            return (
-              <Pressable
-                key={competitor.id}
-                style={[styles.catalogRow, !affordable && styles.catalogRowDisabled]}
-                disabled={!affordable}
-                onPress={() => acquireCompetitor(competitor.id)}
-              >
-                <Text style={styles.rowLabel}>{competitor.name}</Text>
-                <Text style={styles.rowValue}>{formatCurrency(price)}</Text>
-              </Pressable>
-            );
-          })}
-          </Card>
+            ) : null}
+            {state.competitorBrands.map((competitor, index) => {
+              const price = calculateAcquisitionPrice(competitor);
+              const affordable = state.cash >= price;
+              return (
+                <CatalogRow key={competitor.id} index={index} disabled={!affordable} onPress={() => acquireCompetitor(competitor.id)}>
+                  <Text className="text-sm text-text-primary">{competitor.name}</Text>
+                  <Text className="text-sm font-semibold text-text-primary">{formatCurrency(price)}</Text>
+                </CatalogRow>
+              );
+            })}
+          </CardBox>
         </>
       ) : null}
 
       {activeDept === 'research' ? (
         <>
           {RESEARCH_BRANCHES.map((branch) => (
-            <Card key={branch}>
+            <CardBox key={branch}>
               <SectionLabel icon={RESEARCH_BRANCH_ICONS[branch]} label={RESEARCH_BRANCH_LABELS[branch]} />
               {researchTree
                 .filter((node) => node.branch === branch)
                 .sort((a, b) => a.tier - b.tier)
-                .map((node) => {
+                .map((node, index) => {
                   const unlocked = state.researchUnlockedIds.includes(node.id);
                   const canUnlock = canUnlockResearchNode(node, state.researchUnlockedIds);
                   const affordable = state.cash >= node.cost;
                   return (
-                    <View key={node.id} style={styles.researchNode}>
-                      <View style={styles.researchNodeHeader}>
-                        <Text style={styles.rowLabel}>
+                    <View key={node.id} className={`gap-xs py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-sm text-text-primary">
                           Tier{node.tier} {node.label}
                         </Text>
                         {unlocked ? <Ionicons name="checkmark-circle" size={16} color={colors.positive} /> : null}
                       </View>
-                      <Text style={styles.subLabel}>{node.description}</Text>
+                      <Text className="text-xs text-text-muted">{node.description}</Text>
                       {!unlocked ? (
                         <AppButton
                           label={`アンロック(${formatCurrency(node.cost)})`}
@@ -510,83 +528,10 @@ export function CorporateScreen() {
                     </View>
                   );
                 })}
-            </Card>
+            </CardBox>
           ))}
         </>
       ) : null}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  title: { ...typography.title, color: colors.textPrimary },
-  deptRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
-  deptTab: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  deptTabActive: { backgroundColor: colors.roast, borderColor: colors.roastDark },
-  deptTabLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
-  deptTabLabelActive: { color: colors.white },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-  cardLabel: { ...typography.label, color: colors.textSecondary },
-  subLabel: { fontSize: 12, color: colors.textMuted },
-  rowLabel: { fontSize: 14, color: colors.textPrimary },
-  rowValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  titleButtonRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
-  titleButton: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, alignItems: 'center' },
-  titleButtonText: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
-  catalogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  catalogRowDisabled: { opacity: 0.4 },
-  stepper: { flexDirection: 'row', gap: spacing.sm },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperButtonText: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  donutRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  legend: { flex: 1, gap: spacing.xs },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { flex: 1, fontSize: 13, color: colors.textPrimary },
-  legendValue: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  deptFloorLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  smallButton: { backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: spacing.sm },
-  smallButtonText: { fontSize: 11, fontWeight: '600', color: colors.textPrimary },
-  automationRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  automationLabel: { gap: 2 },
-  researchNode: {
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: spacing.xs,
-  },
-  researchNodeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-});

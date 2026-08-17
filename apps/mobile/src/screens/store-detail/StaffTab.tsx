@@ -1,20 +1,40 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, Pressable } from 'react-native';
 import { generateEmployeeCandidates, type Employee, type EmployeeRole, type Store } from '@coffee-empire/core';
-import { Card } from '../../components/Card';
+import { Gauge } from '../../components/Gauge';
 import { trainingCost } from '../../state/slices/storeSlice';
-import { colors, spacing, radius, typography } from '../../theme/theme';
+import { StaffIcon } from '../../icons';
+import { colors } from '../../theme/theme';
 
 function formatCurrency(amount: number): string {
   return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
 }
 
-function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function SectionLabel({ label }: { label: string }) {
   return (
-    <View style={styles.sectionHeader}>
-      <Ionicons name={icon} size={15} color={colors.roastLight} />
-      <Text style={styles.cardLabel}>{label}</Text>
+    <View className="mb-xs flex-row items-center gap-xs">
+      <StaffIcon size={15} color={colors.roastLight} />
+      <Text className="text-[13px] font-medium text-text-secondary">{label}</Text>
+    </View>
+  );
+}
+
+function Stepper({ value, onDecrement, onIncrement }: { value: string; onDecrement: () => void; onIncrement: () => void }) {
+  return (
+    <View className="flex-row items-center gap-sm">
+      <Pressable
+        className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt active:opacity-70"
+        onPress={onDecrement}
+      >
+        <Text className="text-base font-bold text-text-primary">-</Text>
+      </Pressable>
+      <Text className="min-w-[80px] text-center text-sm font-bold text-text-primary">{value}</Text>
+      <Pressable
+        className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt active:opacity-70"
+        onPress={onIncrement}
+      >
+        <Text className="text-base font-bold text-text-primary">+</Text>
+      </Pressable>
     </View>
   );
 }
@@ -49,115 +69,73 @@ export function StaffTab({
   );
 
   return (
-    <View style={styles.container}>
-      <Card>
-        <SectionLabel icon="people" label={`従業員(${storeEmployees.length}名)`} />
-        {storeEmployees.map((employee) => {
+    <View className="gap-md">
+      <View className="gap-sm rounded-md border border-border bg-surface p-md">
+        <SectionLabel label={`従業員(${storeEmployees.length}名)`} />
+        {storeEmployees.map((employee, index) => {
           const cost = trainingCost(employee.skillLevel);
           const canTrain = employee.skillLevel < 100 && cash >= cost;
+          const moraleColor = employee.motivation >= 60 ? colors.positive : employee.motivation >= 35 ? colors.gold : colors.negative;
+
           return (
-            <View key={employee.id} style={styles.employeeBlock}>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>
+            <View
+              key={employee.id}
+              className={`gap-sm py-sm ${index === 0 ? '' : 'border-t border-border'}`}
+            >
+              <View className="flex-row items-center justify-between">
+                <Text className="flex-shrink text-sm text-text-primary">
                   {employee.name}({employee.role}) スキル{employee.skillLevel}
                 </Text>
                 <Pressable onPress={() => fireEmployee(store.id, employee.id)}>
-                  <Text style={styles.fireText}>解雇</Text>
+                  <Text className="text-xs font-semibold text-negative">解雇</Text>
                 </Pressable>
               </View>
-              <View style={styles.row}>
-                <View style={styles.stepper}>
-                  <Pressable
-                    style={styles.stepperButton}
-                    onPress={() => adjustSalary(employee.id, employee.salaryPerMonth - SALARY_STEP)}
-                  >
-                    <Text style={styles.stepperButtonText}>-</Text>
-                  </Pressable>
-                  <Text style={styles.rowValue}>{formatCurrency(employee.salaryPerMonth)}</Text>
-                  <Pressable
-                    style={styles.stepperButton}
-                    onPress={() => adjustSalary(employee.id, employee.salaryPerMonth + SALARY_STEP)}
-                  >
-                    <Text style={styles.stepperButtonText}>+</Text>
-                  </Pressable>
-                </View>
+
+              <Gauge label="モチベーション" value={employee.motivation} color={moraleColor} />
+
+              <View className="flex-row items-center justify-between">
+                <Stepper
+                  value={formatCurrency(employee.salaryPerMonth)}
+                  onDecrement={() => adjustSalary(employee.id, employee.salaryPerMonth - SALARY_STEP)}
+                  onIncrement={() => adjustSalary(employee.id, employee.salaryPerMonth + SALARY_STEP)}
+                />
                 <Pressable
-                  style={[styles.trainButton, !canTrain && styles.trainButtonDisabled]}
+                  className={`rounded-sm bg-surface-alt px-sm py-xs ${canTrain ? '' : 'opacity-40'}`}
                   disabled={!canTrain}
                   onPress={() => trainEmployee(employee.id)}
                 >
-                  <Text style={styles.trainButtonText}>研修({formatCurrency(cost)})</Text>
+                  <Text className="text-xs font-semibold text-roast-light">研修({formatCurrency(cost)})</Text>
                 </Pressable>
               </View>
             </View>
           );
         })}
 
-        <View style={styles.roleButtonRow}>
-          <Pressable style={styles.roleButton} onPress={() => setCandidateRole('barista')}>
-            <Text style={styles.roleButtonText}>バリスタ採用候補</Text>
+        <View className="mt-sm flex-row gap-sm">
+          <Pressable className="flex-1 items-center rounded-sm bg-surface-alt p-sm" onPress={() => setCandidateRole('barista')}>
+            <Text className="text-xs font-semibold text-text-primary">バリスタ採用候補</Text>
           </Pressable>
-          <Pressable style={styles.roleButton} onPress={() => setCandidateRole('storeManager')}>
-            <Text style={styles.roleButtonText}>店長採用候補</Text>
+          <Pressable className="flex-1 items-center rounded-sm bg-surface-alt p-sm" onPress={() => setCandidateRole('storeManager')}>
+            <Text className="text-xs font-semibold text-text-primary">店長採用候補</Text>
           </Pressable>
         </View>
 
         {candidates.map((candidate) => (
           <Pressable
             key={candidate.id}
-            style={styles.catalogRow}
+            className="flex-row items-center justify-between border-t border-border py-sm"
             onPress={() => {
               hireEmployee(store.id, candidate);
               setCandidateRole(null);
             }}
           >
-            <Text style={styles.rowLabel}>{candidate.name}</Text>
-            <Text style={styles.rowValue}>
+            <Text className="text-sm text-text-primary">{candidate.name}</Text>
+            <Text className="text-sm font-semibold text-text-primary">
               スキル{candidate.skillLevel} / {formatCurrency(candidate.salaryPerMonth)}
             </Text>
           </Pressable>
         ))}
-      </Card>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: spacing.md },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-  cardLabel: { ...typography.label, color: colors.textSecondary },
-  employeeBlock: { paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  rowLabel: { fontSize: 14, color: colors.textPrimary, flexShrink: 1 },
-  rowValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  fireText: { fontSize: 12, fontWeight: '600', color: colors.negative },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperButtonText: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  trainButton: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  trainButtonDisabled: { opacity: 0.4 },
-  trainButtonText: { fontSize: 12, fontWeight: '600', color: colors.roastLight },
-  catalogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  roleButtonRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  roleButton: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, alignItems: 'center' },
-  roleButtonText: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
-});

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -8,7 +8,6 @@ import { OverviewTab } from './store-detail/OverviewTab';
 import { OperationsTab } from './store-detail/OperationsTab';
 import { DesignTab } from './store-detail/DesignTab';
 import { StaffTab } from './store-detail/StaffTab';
-import { colors, spacing, typography } from '../theme/theme';
 
 type Route = RouteProp<RootStackParamList, 'StoreDetail'>;
 
@@ -44,8 +43,8 @@ export function StoreDetailScreen() {
 
   if (!store) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.emptyText}>店舗が見つかりません</Text>
+      <View className="flex-1 bg-background">
+        <Text className="mt-lg text-center text-[13px] text-text-muted">店舗が見つかりません</Text>
       </View>
     );
   }
@@ -53,8 +52,8 @@ export function StoreDetailScreen() {
   const storeEmployees = employees.filter((employee) => store.employeeIds.includes(employee.id));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.storeTitle}>{store.name}</Text>
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
+      <Text className="text-xl font-bold text-text-primary">{store.name}</Text>
 
       <TabBar items={TABS} activeKey={activeTab} onChange={setActiveTab} />
 
@@ -88,10 +87,3 @@ export function StoreDetailScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  storeTitle: { ...typography.title, color: colors.textPrimary },
-  emptyText: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 24 },
-});

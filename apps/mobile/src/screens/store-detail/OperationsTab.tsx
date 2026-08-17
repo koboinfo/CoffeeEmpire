@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, Pressable } from 'react-native';
 import type { RoastBatch, Store } from '@coffee-empire/core';
-import { Card } from '../../components/Card';
-import { colors, spacing, radius, typography } from '../../theme/theme';
+import { CalendarIcon, ChartIcon, GearIcon } from '../../icons';
+import { colors } from '../../theme/theme';
 
 function formatCurrency(amount: number): string {
   return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
@@ -11,13 +10,47 @@ function formatCurrency(amount: number): string {
 
 const PRICE_STEP = 50;
 
-function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <View style={styles.sectionHeader}>
-      <Ionicons name={icon} size={15} color={colors.roastLight} />
-      <Text style={styles.cardLabel}>{label}</Text>
+    <View className="mb-xs flex-row items-center gap-xs">
+      {icon}
+      <Text className="text-[13px] font-medium text-text-secondary">{label}</Text>
     </View>
   );
+}
+
+function Stepper({
+  value,
+  onDecrement,
+  onIncrement,
+}: {
+  value: string;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}) {
+  return (
+    <View className="flex-row items-center gap-sm">
+      <Pressable
+        className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt active:opacity-70"
+        onPress={onDecrement}
+      >
+        <Text className="text-base font-bold text-text-primary">-</Text>
+      </Pressable>
+      <Text className="min-w-[64px] text-center text-base font-bold text-text-primary">{value}</Text>
+      <Pressable
+        className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt active:opacity-70"
+        onPress={onIncrement}
+      >
+        <Text className="text-base font-bold text-text-primary">+</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 営業時間の長さに応じた簡易な売上プレビュー係数(±10%を目安に線形近似)。実際の計算式(financials.ts)を呼ばず、体感的な増減の方向性のみを示す。 */
+function previewHoursDelta(currentHours: number, baselineHours: number): number {
+  if (baselineHours <= 0) return 0;
+  return (currentHours - baselineHours) / baselineHours;
 }
 
 interface OperationsTabProps {
@@ -37,96 +70,85 @@ export function OperationsTab({
 }: OperationsTabProps) {
   const [pickingBatchForMenuItemId, setPickingBatchForMenuItemId] = useState<string | null>(null);
   const { open, close } = store.operatingHours;
+  const hoursOpen = Math.max(0, close - open);
+  const hoursDelta = previewHoursDelta(hoursOpen, 10);
 
   return (
-    <View style={styles.container}>
-      <Card>
-        <SectionLabel icon="time" label="営業時間" />
-        <View style={styles.hoursRow}>
-          <View style={styles.hourStepper}>
-            <Pressable
-              style={styles.stepperButton}
-              onPress={() => setOperatingHours(store.id, Math.max(0, open - 1), close)}
-            >
-              <Text style={styles.stepperButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.hourValue}>{open}:00</Text>
-            <Pressable
-              style={styles.stepperButton}
-              onPress={() => setOperatingHours(store.id, Math.min(close - 1, open + 1), close)}
-            >
-              <Text style={styles.stepperButtonText}>+</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.hourSeparator}>〜</Text>
-          <View style={styles.hourStepper}>
-            <Pressable
-              style={styles.stepperButton}
-              onPress={() => setOperatingHours(store.id, open, Math.max(open + 1, close - 1))}
-            >
-              <Text style={styles.stepperButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.hourValue}>{close}:00</Text>
-            <Pressable
-              style={styles.stepperButton}
-              onPress={() => setOperatingHours(store.id, open, Math.min(24, close + 1))}
-            >
-              <Text style={styles.stepperButtonText}>+</Text>
-            </Pressable>
-          </View>
+    <View className="gap-md">
+      <View className="gap-sm rounded-md border border-border bg-surface p-md">
+        <SectionLabel icon={<CalendarIcon size={15} color={colors.roastLight} />} label="営業時間" />
+        <View className="flex-row items-center justify-center gap-md">
+          <Stepper
+            value={`${open}:00`}
+            onDecrement={() => setOperatingHours(store.id, Math.max(0, open - 1), close)}
+            onIncrement={() => setOperatingHours(store.id, Math.min(close - 1, open + 1), close)}
+          />
+          <Text className="text-sm text-text-muted">〜</Text>
+          <Stepper
+            value={`${close}:00`}
+            onDecrement={() => setOperatingHours(store.id, open, Math.max(open + 1, close - 1))}
+            onIncrement={() => setOperatingHours(store.id, open, Math.min(24, close + 1))}
+          />
         </View>
-      </Card>
+        <View
+          className="mt-xs flex-row items-center justify-between rounded-sm px-sm py-xs"
+          style={{ backgroundColor: hoursDelta >= 0 ? 'rgba(95,190,114,0.14)' : 'rgba(226,86,75,0.14)' }}
+        >
+          <Text className="text-xs text-text-secondary">1日{hoursOpen}時間営業 ・ 予測売上への影響(目安)</Text>
+          <Text className="text-xs font-bold" style={{ color: hoursDelta >= 0 ? colors.positive : colors.negative }}>
+            {hoursDelta >= 0 ? '+' : ''}
+            {Math.round(hoursDelta * 100)}%
+          </Text>
+        </View>
+      </View>
 
-      <Card>
-        <SectionLabel icon="restaurant" label="メニュー" />
-        {store.menu.map((item) => {
+      <View className="gap-sm rounded-md border border-border bg-surface p-md">
+        <SectionLabel icon={<GearIcon size={15} color={colors.roastLight} />} label="メニュー" />
+        {store.menu.map((item, index) => {
           const isPicking = pickingBatchForMenuItemId === item.id;
+          const margin = item.currentPrice > 0 ? (item.currentPrice - item.costOfGoods) / item.currentPrice : 0;
+
           return (
-            <View key={item.id}>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>{item.name}</Text>
-                <View style={styles.stepper}>
-                  <Pressable
-                    style={styles.stepperButton}
-                    onPress={() => setMenuItemPrice(store.id, item.id, Math.max(0, item.currentPrice - PRICE_STEP))}
-                  >
-                    <Text style={styles.stepperButtonText}>-</Text>
-                  </Pressable>
-                  <Text style={styles.rowValue}>{formatCurrency(item.currentPrice)}</Text>
-                  <Pressable
-                    style={styles.stepperButton}
-                    onPress={() => setMenuItemPrice(store.id, item.id, item.currentPrice + PRICE_STEP)}
-                  >
-                    <Text style={styles.stepperButtonText}>+</Text>
-                  </Pressable>
+            <View key={item.id} className={`py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+              <View className="flex-row items-center justify-between">
+                <Text className="flex-shrink text-sm text-text-primary">{item.name}</Text>
+                <Stepper
+                  value={formatCurrency(item.currentPrice)}
+                  onDecrement={() => setMenuItemPrice(store.id, item.id, Math.max(0, item.currentPrice - PRICE_STEP))}
+                  onIncrement={() => setMenuItemPrice(store.id, item.id, item.currentPrice + PRICE_STEP)}
+                />
+              </View>
+              <View className="mt-xs flex-row items-center justify-between">
+                <Text className="text-xs text-text-muted">
+                  原価 {formatCurrency(item.costOfGoods)} / 品質 {item.qualityScore}
+                </Text>
+                <View className="flex-row items-center gap-[2px]">
+                  <ChartIcon size={11} color={margin >= 0 ? colors.positive : colors.negative} />
+                  <Text className="text-xs font-semibold" style={{ color: margin >= 0 ? colors.positive : colors.negative }}>
+                    粗利 {Math.round(margin * 100)}%
+                  </Text>
                 </View>
               </View>
-              <Text style={styles.subLabel}>
-                原価 {formatCurrency(item.costOfGoods)} / 品質 {item.qualityScore}
-              </Text>
-              <Pressable
-                style={styles.linkButton}
-                onPress={() => setPickingBatchForMenuItemId(isPicking ? null : item.id)}
-              >
-                <Text style={styles.linkButtonText}>焙煎豆を適用</Text>
+              <Pressable className="py-xs" onPress={() => setPickingBatchForMenuItemId(isPicking ? null : item.id)}>
+                <Text className="text-xs font-semibold text-roast">焙煎豆を適用</Text>
               </Pressable>
               {isPicking ? (
                 roastedInventory.length === 0 ? (
-                  <Text style={styles.subLabel}>適用可能な焙煎後在庫がありません</Text>
+                  <Text className="text-xs text-text-muted">適用可能な焙煎後在庫がありません</Text>
                 ) : (
                   roastedInventory.map((batch) => (
                     <Pressable
                       key={batch.id}
-                      style={styles.catalogRow}
+                      className="flex-row items-center justify-between border-t border-border py-sm"
                       onPress={() => {
                         applyRoastedBatchToMenuItem(store.id, item.id, batch.id);
                         setPickingBatchForMenuItemId(null);
                       }}
                     >
-                      <Text style={styles.rowLabel}>
+                      <Text className="text-sm text-text-primary">
                         {batch.roastLevel} {batch.outputKg}kg
                       </Text>
-                      <Text style={styles.rowValue}>品質{batch.qualityScore}</Text>
+                      <Text className="text-sm font-semibold text-text-primary">品質{batch.qualityScore}</Text>
                     </Pressable>
                   ))
                 )
@@ -134,41 +156,7 @@ export function OperationsTab({
             </View>
           );
         })}
-      </Card>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: spacing.md },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-  cardLabel: { ...typography.label, color: colors.textSecondary },
-  subLabel: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xs },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  rowLabel: { fontSize: 14, color: colors.textPrimary },
-  rowValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stepperButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperButtonText: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  catalogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  linkButton: { paddingVertical: 4 },
-  linkButtonText: { fontSize: 12, fontWeight: '600', color: colors.roast },
-  hoursRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  hourStepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hourValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, minWidth: 48, textAlign: 'center' },
-  hourSeparator: { fontSize: 14, color: colors.textMuted },
-});

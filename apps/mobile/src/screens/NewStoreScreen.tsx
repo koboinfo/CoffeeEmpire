@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, FlatList } from 'react-native';
+import { View, Text, Pressable, FlatList } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,10 @@ import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Card } from '../components/Card';
 import { AppButton } from '../components/AppButton';
-import { colors, spacing, typography } from '../theme/theme';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { GlowBadge } from '../components/GlowBadge';
+import { BuildingIcon, WarningIcon, CheckCircleIcon } from '../icons';
+import { colors } from '../theme/theme';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList, 'NewStore'>;
 type Route = RouteProp<RootStackParamList, 'NewStore'>;
@@ -27,6 +30,7 @@ export function NewStoreScreen() {
   const openStore = useGameStore((store) => store.openStore);
   const stores = useGameStore((store) => store.state.stores);
   const properties = useGameStore((store) => store.properties);
+  const competitorBrands = useGameStore((store) => store.state.competitorBrands);
 
   const initialCity = cities.find((city) => city.id === route.params?.cityId) ?? null;
   const [selectedCity, setSelectedCity] = useState<City | null>(initialCity);
@@ -45,66 +49,108 @@ export function NewStoreScreen() {
     [selectedCity, stores, propertyById]
   );
 
+  const competitorsInCity = useMemo(
+    () =>
+      selectedCity
+        ? competitorBrands
+            .map((brand) => ({ id: brand.id, name: brand.name, count: brand.storesByCity[selectedCity.id] ?? 0 }))
+            .filter((brand) => brand.count > 0)
+        : [],
+    [selectedCity, competitorBrands]
+  );
+
   if (!selectedCity) {
     return (
-      <FlatList
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        data={cities}
-        keyExtractor={(city) => city.id}
-        renderItem={({ item: city }) => (
-          <Pressable onPress={() => setSelectedCity(city)}>
-            <Card style={styles.cardRow}>
-              <Ionicons name="location" size={20} color={colors.roast} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cityName}>{city.name}</Text>
-                <Text style={styles.cityMeta}>{city.country} ・ 所得水準 {city.incomeLevel} / 10</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </Card>
-          </Pressable>
-        )}
-      />
+      <GridBackdrop className="flex-1">
+        <FlatList
+          contentContainerClassName="gap-sm p-md"
+          data={cities}
+          keyExtractor={(city) => city.id}
+          renderItem={({ item: city }) => (
+            <Pressable onPress={() => setSelectedCity(city)}>
+              <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <GlowBadge color={colors.roast} size={30}>
+                  <BuildingIcon size={15} color={colors.white} />
+                </GlowBadge>
+                <View className="flex-1">
+                  <Text className="text-[17px] font-bold text-text-primary">{city.name}</Text>
+                  <Text className="text-[13px] text-text-secondary">
+                    {city.country} ・ 所得水準 {city.incomeLevel} / 10
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Card>
+            </Pressable>
+          )}
+        />
+      </GridBackdrop>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionLabel}>{selectedCity.name}の店舗マップ</Text>
+    <GridBackdrop className="flex-1">
+      <Text className="p-md pb-0 text-[15px] font-semibold text-text-primary">{selectedCity.name}の店舗マップ</Text>
       <FlatList
-        contentContainerStyle={styles.content}
+        contentContainerClassName="gap-sm p-md"
         data={propertyOptions}
         keyExtractor={(property) => property.id}
         numColumns={2}
-        columnWrapperStyle={styles.row}
+        columnWrapperStyle={{ gap: 8 }}
         ListHeaderComponent={
-          ownedStoresInCity.length > 0 ? (
-            <View style={styles.ownedRow}>
-              {ownedStoresInCity.map((store) => (
-                <View key={store.id} style={styles.ownedPin}>
-                  <Ionicons name="cafe" size={14} color={colors.white} />
-                  <Text style={styles.ownedPinLabel} numberOfLines={1}>
-                    {store.name}
-                  </Text>
+          ownedStoresInCity.length > 0 || competitorsInCity.length > 0 ? (
+            <View className="mb-sm gap-xs">
+              {ownedStoresInCity.length > 0 ? (
+                <View className="flex-row flex-wrap gap-xs">
+                  {ownedStoresInCity.map((store) => (
+                    <View
+                      key={store.id}
+                      className="max-w-[170px] flex-row items-center gap-xs rounded-full bg-map-owned px-sm py-xs"
+                      style={{ shadowColor: colors.mapOwned, shadowOpacity: 0.6, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 }}
+                    >
+                      <CheckCircleIcon size={12} color={colors.white} />
+                      <Text className="flex-shrink text-xs font-bold text-white" numberOfLines={1}>
+                        {store.name}
+                      </Text>
+                      <Text className="text-[10px] font-bold text-white/80">
+                        {store.employeeIds.length < 2 ? '人手不足' : '営業中'}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              ) : null}
+              {competitorsInCity.length > 0 ? (
+                <View className="flex-row flex-wrap gap-xs">
+                  {competitorsInCity.map((brand) => (
+                    <View key={brand.id} className="flex-row items-center gap-xs rounded-full border border-negative/40 bg-negative/15 px-sm py-xs">
+                      <WarningIcon size={12} color={colors.negative} />
+                      <Text className="text-xs font-bold text-negative">
+                        {brand.name} ×{brand.count}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null
         }
         renderItem={({ item: property }) => (
-          <Card style={styles.propertyCard}>
-            <View style={styles.vacantBadge}>
-              <Ionicons name="location-outline" size={14} color={colors.mapVacant} />
-              <Text style={styles.vacantBadgeText}>空き物件</Text>
+          <Card style={{ flex: 1, gap: 4, borderColor: colors.mapVacant, borderWidth: 1 }}>
+            <View className="flex-row items-center gap-xs">
+              <GlowBadge color={colors.mapVacant} size={20}>
+                <WarningIcon size={11} color={colors.white} />
+              </GlowBadge>
+              <Text className="text-[11px] font-semibold" style={{ color: colors.mapVacant }}>
+                空き物件・For Rent
+              </Text>
             </View>
-            <Text style={styles.cityName}>{SIZE_LABEL[property.size]}</Text>
-            <View style={styles.previewRow}>
+            <Text className="text-[17px] font-bold text-text-primary">{SIZE_LABEL[property.size]}</Text>
+            <View className="flex-row items-center gap-xs">
               <Ionicons name="walk" size={12} color={colors.textSecondary} />
-              <Text style={styles.previewText}>{property.footTraffic.toLocaleString('ja-JP')}人/月</Text>
+              <Text className="text-xs font-semibold text-text-secondary">{property.footTraffic.toLocaleString('ja-JP')}人/月</Text>
             </View>
-            <View style={styles.previewRow}>
+            <View className="flex-row items-center gap-xs">
               <Ionicons name="cash-outline" size={12} color={colors.gold} />
-              <Text style={styles.previewText}>¥{property.rentPerMonth.toLocaleString('ja-JP')}/月</Text>
+              <Text className="text-xs font-semibold text-text-secondary">¥{property.rentPerMonth.toLocaleString('ja-JP')}/月</Text>
             </View>
             <AppButton
               label="出店する"
@@ -117,38 +163,9 @@ export function NewStoreScreen() {
           </Card>
         )}
       />
-      <Pressable style={styles.backButton} onPress={() => setSelectedCity(null)}>
-        <Text style={styles.backButtonText}>都市選択に戻る</Text>
+      <Pressable className="items-center p-md" onPress={() => setSelectedCity(null)}>
+        <Text className="font-semibold" style={{ color: colors.roast }}>都市選択に戻る</Text>
       </Pressable>
-    </View>
+    </GridBackdrop>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, gap: spacing.sm },
-  row: { gap: spacing.sm },
-  ownedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
-  ownedPin: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: 160,
-    backgroundColor: colors.mapOwned,
-    borderRadius: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  ownedPinLabel: { fontSize: 12, fontWeight: '700', color: colors.white, flexShrink: 1 },
-  vacantBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  vacantBadgeText: { fontSize: 11, color: colors.mapVacant, fontWeight: '600' },
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  previewText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
-  sectionLabel: { ...typography.body, fontWeight: '600', color: colors.textPrimary, padding: spacing.md, paddingBottom: 0 },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  propertyCard: { flex: 1, gap: 4 },
-  cityName: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
-  cityMeta: { fontSize: 13, color: colors.textSecondary },
-  backButton: { alignItems: 'center', padding: spacing.md },
-  backButtonText: { color: colors.roast, fontWeight: '600' },
-});

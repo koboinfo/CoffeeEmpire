@@ -1,20 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, Pressable, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateCityMarketShare, cities } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Card } from '../components/Card';
-import { AppButton } from '../components/AppButton';
-import { colors, spacing, typography, radius } from '../theme/theme';
+import { GridBackdrop } from '../components/GridBackdrop';
+import { GlowBadge } from '../components/GlowBadge';
+import { BuildingIcon, WarningIcon } from '../icons';
+import { getCityImage } from '../assets/images/registry';
+import { colors } from '../theme/theme';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 /**
  * 実地図SDK(react-native-maps等)は未導入で、都市カードのグリッド一覧で代替する。
  * 実地図描画・ピン配置は将来のパフォーマンス最適化・外部連携で検討する。
+ * 背景は GridBackdrop(グラデーション+パースグリッド+glow)。実写素材が
+ * registry.ts に登録され次第そちらへ自動的に切り替わる。
  */
 export function MapScreen() {
   const navigation = useNavigation<Navigation>();
@@ -39,90 +43,88 @@ export function MapScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>ワールドマップ</Text>
-        <Text style={styles.subtitle}>都市を選んで進出状況を確認</Text>
+    <GridBackdrop className="flex-1">
+      <View className="px-md pt-md">
+        <Text className="text-[20px] font-bold text-text-primary">ワールドマップ</Text>
+        <Text className="mt-[2px] text-[13px] font-medium text-text-secondary">都市を選んで進出状況を確認</Text>
       </View>
       <FlatList
-        contentContainerStyle={styles.content}
+        contentContainerClassName="gap-sm p-md"
         data={cities}
         keyExtractor={(city) => city.id}
         numColumns={2}
-        columnWrapperStyle={styles.row}
+        columnWrapperStyle={{ gap: 8 }}
         renderItem={({ item: city }) => {
           const ownedCount = storeCountByCity.get(city.id) ?? 0;
           const competitorCount = competitorStoreCountByCity.get(city.id) ?? 0;
           const marketShare = calculateCityMarketShare(city.id, ownedCount, competitorBrands);
           const topShare = marketShare.find((entry) => entry.id === 'player');
+          const cityImage = getCityImage(city.id);
+          const isTerritory = ownedCount > 0;
+          const isContested = competitorCount > ownedCount;
 
           return (
-            <Card style={styles.card}>
-              <View style={styles.pinBadge}>
-                <Ionicons name="location" size={16} color={colors.white} />
-              </View>
-              <Text style={styles.cityName}>{city.name}</Text>
-              <Text style={styles.cityMeta}>{city.country}</Text>
-              <Text style={styles.cityMeta}>所得水準 {city.incomeLevel} / 10</Text>
+            <Pressable
+              className="flex-1 overflow-hidden rounded-md border bg-surface"
+              style={{
+                borderColor: isTerritory ? colors.mapOwned : isContested ? colors.mapCompetitor : colors.border,
+                shadowColor: isTerritory ? colors.mapOwned : isContested ? colors.mapCompetitor : '#000000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: isTerritory || isContested ? 0.3 : 0.35,
+                shadowRadius: isTerritory || isContested ? 10 : 8,
+                elevation: 3,
+              }}
+              onPress={() => navigation.navigate('NewStore', { cityId: city.id })}
+            >
+              <GridBackdrop image={cityImage} className="h-16 justify-end p-sm" glowColor={isTerritory ? colors.mapOwned : colors.roast}>
+                <View className="self-end">
+                  <GlowBadge color={isTerritory ? colors.mapOwned : colors.roast} size={30}>
+                    <BuildingIcon size={15} color={colors.white} />
+                  </GlowBadge>
+                </View>
+              </GridBackdrop>
 
-              <View style={styles.iconRow}>
-                <View style={styles.iconStat}>
-                  <Ionicons name="walk" size={12} color={colors.textSecondary} />
-                  <Text style={styles.iconStatText}>{Math.round(city.footTrafficIndex * 1000).toLocaleString('ja-JP')}</Text>
+              <View className="gap-[4px] p-md">
+                <Text className="text-base font-bold text-text-primary">{city.name}</Text>
+                <Text className="text-xs text-text-secondary">{city.country}</Text>
+                <Text className="text-xs text-text-secondary">所得水準 {city.incomeLevel} / 10</Text>
+
+                <View className="mb-xs mt-xs flex-row flex-wrap items-center gap-sm">
+                  <View className="flex-row items-center gap-[4px]">
+                    <Ionicons name="walk" size={12} color={colors.textSecondary} />
+                    <Text className="text-xs font-bold text-text-primary">
+                      {Math.round(city.footTrafficIndex * 1000).toLocaleString('ja-JP')}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center gap-[4px]">
+                    <GlowBadge color={colors.mapOwned} size={18}>
+                      <BuildingIcon size={10} color={colors.white} />
+                    </GlowBadge>
+                    <Text className="text-xs font-bold text-text-primary">{ownedCount}</Text>
+                  </View>
+                  <View className="flex-row items-center gap-[4px]">
+                    <GlowBadge color={colors.mapCompetitor} size={18}>
+                      <WarningIcon size={10} color={colors.white} />
+                    </GlowBadge>
+                    <Text className="text-xs font-bold text-text-primary">{competitorCount}</Text>
+                  </View>
                 </View>
-                <View style={styles.iconStat}>
-                  <View style={[styles.dot, { backgroundColor: colors.mapOwned }]} />
-                  <Ionicons name="cafe" size={12} color={colors.mapOwned} />
-                  <Text style={styles.iconStatText}>{ownedCount}</Text>
-                </View>
-                <View style={styles.iconStat}>
-                  <View style={[styles.dot, { backgroundColor: colors.mapCompetitor }]} />
-                  <Ionicons name="flag" size={12} color={colors.mapCompetitor} />
-                  <Text style={styles.iconStatText}>{competitorCount}</Text>
+
+                {topShare && topShare.storeCount > 0 ? (
+                  <Text className="text-[11px] text-text-secondary">自社シェア {Math.round(topShare.share * 100)}%</Text>
+                ) : isContested ? (
+                  <Text className="text-[11px] font-semibold text-negative">競合が優勢な商圏</Text>
+                ) : null}
+
+                <View className="mt-xs flex-row items-center justify-between rounded-full border border-border bg-surface-alt px-sm py-xs">
+                  <Text className="text-xs font-bold text-text-primary">都市を見る</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                 </View>
               </View>
-              {topShare && topShare.storeCount > 0 ? (
-                <Text style={styles.shareText}>自社シェア {Math.round(topShare.share * 100)}%</Text>
-              ) : null}
-
-              <AppButton
-                label="都市を見る"
-                icon="chevron-forward"
-                variant="secondary"
-                onPress={() => navigation.navigate('NewStore', { cityId: city.id })}
-              />
-            </Card>
+            </Pressable>
           );
         }}
       />
-    </View>
+    </GridBackdrop>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { padding: spacing.md, paddingBottom: 0 },
-  title: { ...typography.title, color: colors.textPrimary },
-  subtitle: { ...typography.label, color: colors.textSecondary, marginTop: 2 },
-  content: { padding: spacing.md, gap: spacing.sm },
-  row: { gap: spacing.sm },
-  card: { flex: 1, gap: 4, position: 'relative' },
-  pinBadge: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.roast,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cityName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, paddingRight: 30 },
-  cityMeta: { fontSize: 12, color: colors.textSecondary },
-  iconRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: 4, marginBottom: spacing.xs },
-  iconStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  iconStatText: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
-  shareText: { fontSize: 11, color: colors.textSecondary },
-});

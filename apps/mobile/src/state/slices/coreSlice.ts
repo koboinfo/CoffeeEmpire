@@ -13,7 +13,9 @@ import {
   type CoffeeEmpireState,
   type IncomeStatement,
   type Property,
+  type SimEvent,
   type StoreReport,
+  type TriggeredStoreEvent,
   type TurnContext,
 } from '@coffee-empire/core';
 import { createInitialState, sampleProperties } from '../../data/sampleWorld';
@@ -38,11 +40,14 @@ export interface CoreSlice {
   latestBalanceSheet: BalanceSheet | null;
   latestCashFlowStatement: CashFlowStatement | null;
   latestStoreReports: Record<string, StoreReport>;
+  latestTriggeredEvents: SimEvent[];
+  latestTriggeredStoreEvents: TriggeredStoreEvent[];
   isHydrated: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
   advance: () => Promise<void>;
   dismissError: () => void;
+  dismissTriggeredEvents: () => void;
 }
 
 export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set, get) => ({
@@ -53,6 +58,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   latestBalanceSheet: null,
   latestCashFlowStatement: null,
   latestStoreReports: {},
+  latestTriggeredEvents: [],
+  latestTriggeredStoreEvents: [],
   isHydrated: false,
   error: null,
 
@@ -73,6 +80,7 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         storeReports,
         triggeredEvents,
         triggeredStoreEvents,
+        settlement,
       } = advanceTurn(
         state,
         turnContext,
@@ -110,6 +118,9 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
             ],
             MAX_HISTORY_TURNS
           ),
+          settlements: settlement
+            ? capHistory([...nextState.history.settlements, settlement], MAX_HISTORY_TURNS)
+            : nextState.history.settlements,
         },
       };
       set({
@@ -119,6 +130,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
         latestBalanceSheet: balanceSheet,
         latestCashFlowStatement: cashFlowStatement,
         latestStoreReports: storeReports,
+        latestTriggeredEvents: triggeredEvents,
+        latestTriggeredStoreEvents: triggeredStoreEvents,
         error: null,
       });
       await saveState(updatedState);
@@ -129,4 +142,6 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   },
 
   dismissError: () => set({ error: null }),
+
+  dismissTriggeredEvents: () => set({ latestTriggeredEvents: [], latestTriggeredStoreEvents: [] }),
 });
