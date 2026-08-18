@@ -188,3 +188,39 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - `packages/core`: `npm run build`→`node --test dist/**/*.test.js` 179件全パス(コード変更なし、既存の実装を再確認)。
 - `apps/mobile`: `npm run typecheck`エラーなし。
 - ゲームループ(個人事業主で開始→現金を貯めて法人成り→従業員雇用・店舗拡大→10店舗/3都市でHD化条件充足→IPO)をコードレビューで机上検証。実機/シミュレータでの起動確認は本セッションの環境では実施できていない(次回引き継ぎ時に実施推奨)。
+
+## Phase 6(完了、既存) — オンボーディング・クリア条件・実績システム
+
+前セッションで実装済み(`logic/achievements.ts`・`logic/gameOutcome.ts`・`data/achievements.ts`、`isVictoryAchieved`/`unlockedAchievementIds`)。本セッション開始時点でPROJECT_STATE.mdへの記載が漏れていたため、後続セッションのために存在だけ明記しておく(本セッションでは変更していない)。詳細はコミット`7b78985`参照。
+
+## Phase A/B/C(完了) — HQ組織委譲・マクロ金融/資本市場・ブランド戦略/サプライチェーン深化
+
+「経営シミュレーションとしての深み(権限委譲の精緻化・資本市場のリアリティ・ブランド戦略とサプライチェーンの接続)」を目的とした3本柱の追加実装。全て既存の型・関数シグネチャに対してadditive/optionalな設計を徹底し、旧セーブデータ(`save-v2`のまま、ストレージキーのローテーションは不要と判断)・既存テスト191件を破壊せずに追加した。`packages/core`のテストは214件に拡充(全パス)、`apps/mobile`は`npx tsc --noEmit`エラーなしを確認済み。
+
+### Phase A: HQ組織・権限委譲の精緻化
+
+- `types/employee.ts`の`Employee`に`equityCompensationPerMonth?: number`(ストックオプション/RSU相当の月額株式報酬)を追加。`logic/financials.ts`の`calculateEquityCompensationExpense()`(`calculatePayroll`と同じ集計パターン)が合計を算出し、`turnEngine.ts`が`plItems`へ`equityCompensation`(fixedCost)として計上する。会計上は費用だが現金支出を伴わない非資金費用のため、減価償却と同じく`operatingCashFlow`算定時に足し戻す(費用計上してもcashの着地額は変わらない設計。`turnEngine.test.ts`で検証済み)。`apps/mobile`の`corporateSlice.setEmployeeEquityCompensation()`・`CorporateScreen`のexecタブから役員へ月給の10%相当を付与/解除できる。
+- `types/corporate.ts`の`ExecutiveAutomation`に`departmentBudgets?: { hiringMonthlyBudget?: number; marketingMonthlyBudget?: number }`を追加(既存の3フラグ`autoPricing`/`autoHiring`/`autoMarketing`は無変更)。`logic/corporate.ts`の`applyExecutiveAutomation()`は、COO自動採用は今ターンの新規採用給与総額が`hiringMonthlyBudget`を超えたら以降の店舗をスキップ、CMO自動宣伝は`marketingMonthlyBudget`以下のプリセットのみを自動起動候補にするよう変更した。両方とも未設定なら従来通り無制限(cashバッファ判定のみ)で後方互換。`autoPricing`(CFOの自動価格調整)には自然な「予算」概念が無いため対象外とした(価格は原資を消費しないため)。
+- `apps/mobile`の`CorporateScreen`execタブに部門予算の+/-コントロールを追加。独立した`HeadquartersScreen`は作らず、既存のタブ構成(Phase3 Step Cで整理済み)にカードを追加する形で統一感を保った。
+
+### Phase B: マクロ金融・資本市場
+
+- `packages/core/src/logic/creditRating.ts`(新規)。負債比率(40点満点)・利益率(30点満点)・手元資金の売上何ヶ月分か(30点満点)を加点式で0-100スコア化し、8段階(AAA/AA/A/BBB/BB/B/CCC/D)へマッピングする`calculateCreditRating()`。正確な信用モデルではなく「財務が健全なほど有利な金利で借りられる」体験を優先した単純モデル(`calculateDynamicStockPrice`と同系統の設計判断)。`isBankrupt`なら問答無用でD。
+- `logic/loans.ts`に`calculateLoanOfferRate(baseRate, creditRating)`を追加。格付けごとの`interestRateMultiplier`(AAA=0.7倍〜D=3.0倍)を基準金利に乗算し、下限0.5%でクランプする。`createLoan`/`serviceLoans`自体は無変更(呼び出し元が事前に金利を調整してから渡す設計)。`apps/mobile`の`CorporateScreen`loansタブで格付けバッジと調整後オファー金利を表示、`takeLoan`にはこの調整後金利を渡す。
+- `types/corporate.ts`の`StockListing`に`institutionalFloatShares?: number`(publicFloatSharesの内訳のうち機関投資家保有分)を追加。`logic/corporate.ts`の`calculateOwnershipComposition(stock)`が創業者/機関投資家/個人投資家の株数・比率を算出する(founderSharesは`totalShares - publicFloatShares`の差分として暗黙的に扱い、新規フィールドは増やさない=既存設計の踏襲)。`apps/mobile`の`financeSlice.executeIPO()`にinstitutionalRatio引数(デフォルト0.6)を追加、新規`issueAdditionalShares()`(公募増資)で追加株式発行時にも按分して更新する。`CorporateScreen`ipoタブに株主構成ドーナツチャートと、希薄化率を試算表示する公募増資ボタン(5,000株固定プリセット。可変額入力の本格的な「資金調達モーダル」は時間の都合上見送り、既知の簡略化)を追加。
+- `FinancialsScreen`のキャッシュフロー計算書セクションが実は未配線だったことが判明したため追加した(貸借対照表は既存で配線済みだったため無変更)。Phase5時点の引き継ぎでは「BS/CFは配線済みの想定」とされていたが、実際にはBSのみだった。
+
+### Phase C: ブランド戦略・サプライチェーン深化
+
+- `types/simState.ts`の`CoffeeEmpireState`に`brandAwarenessByCity?: Record<string, number>`を追加。既存のグローバルな`state.statuses.brandAwareness`(イベント効果・`launchCampaign`の即時グローバル加点)とは完全に別軸で並存させる(後方互換のため既存ロジックは一切変更していない)。`logic/branding.ts`(新規)が`decayBrandAwarenessByCity()`(毎ターンbaseline=20へわずかに回帰)・`bumpCityBrandAwareness()`・`calculateCityAwarenessRevenueFactor()`(0-100の認知度を0.9〜1.1倍の売上係数へ変換)を提供する。
+- `types/corporate.ts`の`MarketingCampaign`に`cityId?: string`を追加。`cityId`が設定されたキャンペーンは`turnEngine.ts`内で対象都市の`brandAwarenessByCity`のみへ、キャンペーン期間中(`durationTurns`)毎ターン按分した効果量(`awarenessEffect / durationTurns`)を積み増す(既存のグローバルキャンペーンは起動時に全量を即時付与する挙動のままで無変更)。都市認知度は`calculateCityAwarenessRevenueFactor`経由で店舗revenue/variableCostへ、既存の`competitivePressure`/`researchEffects`/`seasonalFactor`と同じ「事後乗算」パターンで適用する。`apps/mobile`の`CorporateScreen`marketingタブに都市選択UI・都市別認知度ゲージを追加し、`launchCampaign(preset, cityId)`で対象都市を指定できるようにした(既存のグローバル起動もcityId省略で引き続き可能)。
+- `types/store.ts`の`MenuItem`に`originBlend?: { originCountries, isOriginalBlend, blendName? }`(表示専用メタデータ)、`types/supplyChain.ts`の`RoastBatch`に`originCountries?: string[]`を追加。`logic/supplyChain.ts`の`calculateMenuItemPreferenceScore()`が産地×焙煎度合い×ブレンドの有無から顧客訴求スコア(0-100)を算出する: シングルオリジンは産地ストーリー性で+4、複数産地を配合したオリジナルブレンドは目新しさで+6。`apps/mobile`の`supplyChainSlice.roastLot()`/`roastBlend()`がこのスコアを`RoastBatch.qualityScore`として採用するよう変更した(`calculateRoastOutput`の結果を上書きする形。既存の`MenuItem.qualityScore`→`averageMenuQuality`→`calculateStoreRevenue`という既存の経路をそのまま流用するため、`calculateStoreRevenue`自体のシグネチャ・ロジックは無変更)。`SupplyChainScreen`(既存の「仕入れ・焙煎」画面がそのまま産地×焙煎×ブレンドを組み立てる画面としての要件を満たしていたため、新規画面は作らず)に顧客訴求スコア・産地/ブレンド種別バッジを追加表示した。
+
+### 既知のギャップ・簡略化(Phase A/B/C時点)
+
+- CFOの自動価格調整(`autoPricing`)には部門予算の概念を導入していない(値付けは原資を消費しないため自然な対応が無い)。
+- 信用格付け・株価モデルと同様、`calculateCreditRating`は簡略化された加点式モデルであり、実際の与信審査を再現するものではない。
+- 公募増資は5,000株固定のプリセットボタンのみで、可変額を入力する本格的な「資金調達モーダル」は実装していない。
+- 都市限定マーケティングキャンペーンに「ポスター/地域広告が出ていないとTV/ブランドスポンサーを起動できない」といった段階的なアンロック制約は設けていない(プリセット自体の予算・効果は既存通り段階的だが、UIはどの都市からでも任意の段階のプリセットを起動できる)。
+- ストックオプション付与は役員への一律の月給10%固定(UIのトグルボタン)で、株数ベースの本格的な権利確定(ベスティング)スケジュールは実装していない。
+- 都市別ブランド認知度の売上係数(0.9〜1.1倍)は既存の`competitivePressure`(0.5〜1.0倍)等と比べて意図的に控えめなレンジにした(認知度単体でゲームバランスを崩さないための保守的な選択)。

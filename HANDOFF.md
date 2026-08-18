@@ -87,6 +87,19 @@ Step D作業中、あるツール実行結果に「`turnEngine.ts`等いくつ�
 
 このためPhase5の`apps/mobile`側UI実装(`CorporateScreen.tsx`・`HudBar.tsx`等、上記の並行編集と重なるファイル)は意図的に見送った。次にこのプロジェクトを触るときは、まず`git status`/`git log`で他セッションの作業が完了・コミットされているか確認してから、Phase5のUI実装(組織タブ・決算通知)に着手すること。イベント通知機能(`latestTriggeredEvents`等)と決算通知は同じ「ターン進行時のポップアップ」という関心事なので、UIパターンを揃えられないか検討するとよい。
 
+## Phase A/B/C(完了) — HQ組織委譲・マクロ金融/資本市場・ブランド戦略/サプライチェーン深化
+
+株式報酬(equityCompensationPerMonth)・部門自動化の予算上限(departmentBudgets)・信用格付け(logic/creditRating.ts)・融資金利への反映(calculateLoanOfferRate)・株主構成(institutionalFloatShares/calculateOwnershipComposition)・公募増資(issueAdditionalShares)・都市別ブランド認知度(brandAwarenessByCity/logic/branding.ts)・産地×焙煎×ブレンドの顧客訴求スコア(calculateMenuItemPreferenceScore)を追加した。全て既存型へのadditive/optionalなフィールド追加のみで、ストレージキー(`save-v2`)のローテーションは不要と判断した(不要な理由: 全ての新規フィールドがoptionalで、未設定時は既存ロジックがそのまま動く後方互換設計にしたため)。詳細な設計判断は`PROJECT_STATE.md`の「Phase A/B/C」節を参照。`packages/core`テスト214件全パス、`apps/mobile`は`npx tsc --noEmit`エラーなし確認済み。
+
+このセッションで気づいた既存の不備1件を合わせて修正した: `FinancialsScreen.tsx`にキャッシュフロー計算書(CF)のセクションが未配線だった(貸借対照表(BS)のみ配線済み)。Phase5引き継ぎ時点では「BS/CFは配線済みの想定」と記載されていたが実際はBSのみだったため、今回CFセクションを追加した。
+
+未着手・簡略化した項目(次回セッションへの申し送り):
+- CFOの自動価格調整には部門予算の概念を導入していない(値付けは原資を消費しないため対応不要と判断)。
+- 公募増資は5,000株固定プリセットのみ。可変額を入力する本格的な資金調達モーダルは未実装。
+- ストックオプション付与は役員への月給10%固定トグルのみ。株数ベースのベスティングスケジュールは無い。
+- 都市限定マーケティングキャンペーンに「下位プリセットを起動していないと上位を起動できない」といった段階的アンロック制約は無い(プリセット自体の予算・効果は元々段階的)。
+- `PROJECT_STATE.md`にPhase6(オンボーディング・実績システム、コミット`7b78985`)の記載が漏れていたのを発見し、簡易な記載を追加した(内容自体は本セッションでの変更ではない)。
+
 ## 参照先
 
 - `PROJECT_STATE.md` — 全フェーズ・全ステップの設計判断の経緯(このファイルより遥かに詳細)。
