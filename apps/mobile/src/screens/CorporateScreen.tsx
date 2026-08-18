@@ -8,13 +8,19 @@ import { Gauge } from '../components/Gauge';
 import { LineChart } from '../components/LineChart';
 import {
   achievements,
+  buildCreditRatingInputsFromState,
   calculateAcquisitionPrice,
+  calculateCreditRating,
   calculateDepartmentUpgradeCost,
+  calculateLoanOfferRate,
   calculateMarketShareRatio,
+  calculateOwnershipComposition,
   canEstablishHolding,
   canIncorporate,
   canUnlockResearchNode,
+  cities,
   generateEmployeeCandidates,
+  getCityBrandAwareness,
   HOLDING_ESTABLISHMENT_COST,
   HOLDING_MIN_CITY_COUNT,
   HOLDING_MIN_STORE_COUNT,
@@ -24,6 +30,7 @@ import {
   type DepartmentType,
   type EntityType,
   type ExecutiveTitle,
+  type MarketingCampaignPreset,
   type ResearchBranch,
 } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
@@ -168,6 +175,7 @@ export function CorporateScreen() {
   const navigation = useNavigation<Navigation>();
   const state = useGameStore((s) => s.state);
   const latestBalanceSheet = useGameStore((s) => s.latestBalanceSheet);
+  const latestIncomeStatement = useGameStore((s) => s.latestIncomeStatement);
   const establishHeadquarters = useGameStore((s) => s.establishHeadquarters);
   const upgradeHeadquartersAction = useGameStore((s) => s.upgradeHeadquartersAction);
   const upgradeDepartmentAction = useGameStore((s) => s.upgradeDepartmentAction);
@@ -180,6 +188,8 @@ export function CorporateScreen() {
   const takeLoan = useGameStore((s) => s.takeLoan);
   const setExecutiveAutomation = useGameStore((s) => s.setExecutiveAutomation);
   const unlockResearchNode = useGameStore((s) => s.unlockResearchNode);
+  const setEmployeeEquityCompensation = useGameStore((s) => s.setEmployeeEquityCompensation);
+  const issueAdditionalShares = useGameStore((s) => s.issueAdditionalShares);
 
   const properties = useGameStore((s) => s.properties);
   const incorporate = useGameStore((s) => s.incorporate);
@@ -187,6 +197,7 @@ export function CorporateScreen() {
 
   const [activeDept, setActiveDept] = useState<DepartmentTabKey>('org');
   const [selectedTitle, setSelectedTitle] = useState<ExecutiveTitle | null>(null);
+  const [marketingCityId, setMarketingCityId] = useState<string>(cities[0]?.id ?? '');
   const candidates = useMemo(
     () => (selectedTitle ? generateEmployeeCandidates('executive', 3, state.turn, Math.random, selectedTitle) : []),
     [selectedTitle, state.turn]
@@ -234,6 +245,16 @@ export function CorporateScreen() {
     );
     return cityIds.size;
   }, [state.stores, properties]);
+
+  const creditRating = useMemo(
+    () =>
+      calculateCreditRating(
+        buildCreditRatingInputsFromState(state, latestBalanceSheet ?? undefined, latestIncomeStatement ?? undefined)
+      ),
+    [state, latestBalanceSheet, latestIncomeStatement]
+  );
+
+  const ownershipComposition = useMemo(() => calculateOwnershipComposition(state.stock), [state.stock]);
 
   const stageMeta = ENTITY_STAGE_META[state.entityType];
 
@@ -444,6 +465,45 @@ export function CorporateScreen() {
             ))}
           </CardBox>
 
+          {executives.length > 0 ? (
+            <CardBox>
+              <SectionLabel icon="diamond" label="ストックオプション/RSU付与" />
+              <Text className="text-xs text-text-secondary">
+                役員に株式報酬(月額換算)を付与するとリテンション施策になる一方、P&Lの費用として計上される
+                (現金支出は伴わない非資金費用)。
+              </Text>
+              {executives.map((executive, index) => {
+                const granted = (executive.equityCompensationPerMonth ?? 0) > 0;
+                return (
+                  <View
+                    key={executive.id}
+                    className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}
+                  >
+                    <View className="gap-[2px]">
+                      <Text className="text-sm text-text-primary">
+                        {executive.name}({executive.executiveTitle})
+                      </Text>
+                      <Text className="text-xs text-text-muted">
+                        {granted ? `付与中 ${formatCurrency(executive.equityCompensationPerMonth ?? 0)}/月` : '未付与'}
+                      </Text>
+                    </View>
+                    <Pressable
+                      className="rounded-sm bg-surface-alt px-sm py-[6px]"
+                      onPress={() =>
+                        setEmployeeEquityCompensation(
+                          executive.id,
+                          granted ? 0 : Math.round(executive.salaryPerMonth * 0.1)
+                        )
+                      }
+                    >
+                      <Text className="text-[11px] font-semibold text-text-primary">{granted ? '解除' : '付与する'}</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </CardBox>
+          ) : null}
+
           <CardBox>
             <SectionLabel icon="options" label="権限委譲(自動化)" />
             <View className="flex-row items-center justify-between border-t border-border py-sm">
@@ -480,26 +540,121 @@ export function CorporateScreen() {
               />
             </View>
           </CardBox>
+
+          <CardBox>
+            <SectionLabel icon="pie-chart" label="部門予算(自動化の月次支出上限)" />
+            <Text className="text-xs text-text-secondary">
+              上限を設定すると、権限委譲がその金額を超えて自動で使い込むのを防げる(未設定=上限なし)。
+            </Text>
+            {(
+              [
+                {
+                  key: 'hiringMonthlyBudget' as const,
+                  label: 'COO自動採用の月次予算',
+                  step: 100_000,
+                },
+                {
+                  key: 'marketingMonthlyBudget' as const,
+                  label: 'CMO自動宣伝の月次予算',
+                  step: 50_000,
+                },
+              ]
+            ).map((row, index) => {
+              const current = state.executiveAutomation.departmentBudgets?.[row.key] ?? 0;
+              return (
+                <View key={row.key} className={`gap-xs py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                  <Text className="text-sm text-text-primary">{row.label}</Text>
+                  <View className="flex-row items-center gap-sm">
+                    <Pressable
+                      className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt"
+                      onPress={() =>
+                        setExecutiveAutomation({
+                          departmentBudgets: {
+                            ...state.executiveAutomation.departmentBudgets,
+                            [row.key]: Math.max(0, current - row.step),
+                          },
+                        })
+                      }
+                    >
+                      <Text className="text-base font-bold text-text-primary">-</Text>
+                    </Pressable>
+                    <Text className="min-w-[110px] text-center text-sm font-semibold text-text-primary">
+                      {current > 0 ? formatCurrency(current) : '上限なし'}
+                    </Text>
+                    <Pressable
+                      className="h-8 w-8 items-center justify-center rounded-full bg-surface-alt"
+                      onPress={() =>
+                        setExecutiveAutomation({
+                          departmentBudgets: {
+                            ...state.executiveAutomation.departmentBudgets,
+                            [row.key]: current + row.step,
+                          },
+                        })
+                      }
+                    >
+                      <Text className="text-base font-bold text-text-primary">+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </CardBox>
         </>
       ) : null}
 
       {activeDept === 'marketing' ? (
         <CardBox>
-          <SectionLabel icon="megaphone" label="ブランド認知度" />
+          <SectionLabel icon="megaphone" label="ブランド認知度(全社)" />
           <Gauge label="Brand Awareness" value={state.statuses.brandAwareness?.value ?? 0} color={colors.gold} />
         </CardBox>
       ) : null}
 
       {activeDept === 'marketing' ? (
         <CardBox>
-          <SectionLabel icon="rocket" label="マーケティングキャンペーン" />
-          {state.activeCampaigns.map((campaign) => (
-            <Text key={campaign.id} className="text-sm text-text-primary">
-              {campaign.type} — 残り{campaign.durationTurns - (state.turn - campaign.startedAtTurn)}ターン
-            </Text>
-          ))}
-          {marketingCampaignPresets.map((preset, index) => (
-            <CatalogRow key={preset.type} index={index} onPress={() => launchCampaign(preset)}>
+          <SectionLabel icon="location" label="都市別ブランド認知度" />
+          <Text className="text-xs text-text-secondary">
+            都市限定キャンペーンはグローバル認知度ではなく、対象都市の認知度のみを継続的に押し上げる(期間中は毎ターン按分して効果が積み上がり、宣伝を止めると徐々に薄れる)。
+          </Text>
+          <View className="flex-row flex-wrap gap-xs">
+            {cities.map((city) => {
+              const selected = city.id === marketingCityId;
+              return (
+                <Pressable
+                  key={city.id}
+                  className={`rounded-sm border px-sm py-[6px] ${selected ? 'border-roast-dark bg-roast' : 'border-border bg-surface-alt'}`}
+                  onPress={() => setMarketingCityId(city.id)}
+                >
+                  <Text className={`text-[11px] font-semibold ${selected ? 'text-white' : 'text-text-secondary'}`}>{city.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Gauge
+            label={`${cities.find((c) => c.id === marketingCityId)?.name ?? ''} の認知度`}
+            value={getCityBrandAwareness(state.brandAwarenessByCity, marketingCityId)}
+            color={colors.roastLight}
+          />
+        </CardBox>
+      ) : null}
+
+      {activeDept === 'marketing' ? (
+        <CardBox>
+          <SectionLabel icon="rocket" label="マーケティングキャンペーン(段階別)" />
+          <Text className="text-xs text-text-secondary">
+            地域広告(ポスター等) → デジタル広告 → ブランドスポンサー(TV/大型) → ロイヤルティ施策、の順に効果・予算とも大きくなる。上で選択中の都市を対象に起動する。
+          </Text>
+          {state.activeCampaigns.map((campaign) => {
+            const cityName = campaign.cityId ? cities.find((c) => c.id === campaign.cityId)?.name : null;
+            return (
+              <Text key={campaign.id} className="text-sm text-text-primary">
+                {campaign.type}
+                {cityName ? `(${cityName}限定)` : '(全社)'} — 残り{campaign.durationTurns - (state.turn - campaign.startedAtTurn)}
+                ターン
+              </Text>
+            );
+          })}
+          {marketingCampaignPresets.map((preset: MarketingCampaignPreset, index) => (
+            <CatalogRow key={preset.type} index={index} onPress={() => launchCampaign(preset, marketingCityId)}>
               <Text className="text-sm text-text-primary">{preset.label}</Text>
               <Text className="text-sm font-semibold text-text-primary">
                 {formatCurrency(preset.budget)}/月 x {preset.durationTurns}ターン
@@ -554,8 +709,58 @@ export function CorporateScreen() {
         </CardBox>
       ) : null}
 
+      {activeDept === 'ipo' && state.stock.isPublic ? (
+        <CardBox>
+          <SectionLabel icon="people" label="株主構成" />
+          <View className="flex-row items-center gap-md py-sm">
+            <DonutChart
+              data={[
+                { label: '創業者', value: ownershipComposition.founderShares, color: colors.roast },
+                { label: '機関投資家', value: ownershipComposition.institutionalShares, color: colors.gold },
+                { label: '個人投資家', value: ownershipComposition.retailPublicShares, color: colors.positive },
+              ]}
+            />
+            <View className="flex-1 gap-xs">
+              <Text className="text-[13px] text-text-primary">創業者 {ownershipComposition.founderPercent}%</Text>
+              <Text className="text-[13px] text-text-primary">機関投資家 {ownershipComposition.institutionalPercent}%</Text>
+              <Text className="text-[13px] text-text-primary">個人投資家 {ownershipComposition.retailPublicPercent}%</Text>
+            </View>
+          </View>
+          <Text className="text-xs text-text-secondary">
+            公募増資(追加の新株発行)は資金調達できる一方、既存株主の持株比率を希薄化させる(dilution)。
+          </Text>
+          <Text className="text-[11px] text-text-muted">
+            例: 5,000株を{formatCurrency(state.stock.sharePrice)}で追加発行すると調達額
+            {formatCurrency(state.stock.sharePrice * 5000)}、希薄化率は約
+            {Math.round((5000 / (state.stock.totalShares + 5000)) * 1000) / 10}%
+          </Text>
+          <AppButton
+            label={`公募増資を実施する(5,000株 / ${formatCurrency(state.stock.sharePrice * 5000)}調達)`}
+            icon="add-circle"
+            variant="secondary"
+            onPress={() => issueAdditionalShares(5000, state.stock.sharePrice)}
+          />
+        </CardBox>
+      ) : null}
+
       {activeDept === 'loans' ? (
         <>
+          <CardBox>
+            <SectionLabel icon="shield-checkmark" label="信用格付け" />
+            <View className="flex-row items-center gap-sm">
+              <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `${colors.gold}26` }}>
+                <Text className="text-base font-bold" style={{ color: colors.gold }}>
+                  {creditRating.rating}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm text-text-primary">財務健全性スコア {creditRating.score}/100</Text>
+                <Text className="text-xs text-text-muted">
+                  格付けが低いほど融資金利オファーが割高になる(基準金利 x{creditRating.interestRateMultiplier.toFixed(2)})
+                </Text>
+              </View>
+            </View>
+          </CardBox>
           <CardBox>
             <SectionLabel icon="wallet" label={`借入中(${state.loans.length}件)`} />
             {state.loans.length === 0 ? (
@@ -572,15 +777,18 @@ export function CorporateScreen() {
             )}
           </CardBox>
           <CardBox>
-            <SectionLabel icon="cash" label="銀行融資を申し込む" />
-            {LOAN_PRESETS.map((preset, index) => (
-              <CatalogRow key={preset.label} index={index} onPress={() => takeLoan(preset.principal, preset.annualInterestRate, preset.termTurns)}>
-                <Text className="text-sm text-text-primary">{preset.label}</Text>
-                <Text className="text-sm font-semibold text-text-primary">
-                  {formatCurrency(preset.principal)} / 金利{Math.round(preset.annualInterestRate * 100)}% / {preset.termTurns}ターン
-                </Text>
-              </CatalogRow>
-            ))}
+            <SectionLabel icon="cash" label="銀行融資を申し込む(格付け反映後の金利オファー)" />
+            {LOAN_PRESETS.map((preset, index) => {
+              const offeredRate = calculateLoanOfferRate(preset.annualInterestRate, creditRating);
+              return (
+                <CatalogRow key={preset.label} index={index} onPress={() => takeLoan(preset.principal, offeredRate, preset.termTurns)}>
+                  <Text className="text-sm text-text-primary">{preset.label}</Text>
+                  <Text className="text-sm font-semibold text-text-primary">
+                    {formatCurrency(preset.principal)} / 金利{(offeredRate * 100).toFixed(1)}% / {preset.termTurns}ターン
+                  </Text>
+                </CatalogRow>
+              );
+            })}
           </CardBox>
         </>
       ) : null}

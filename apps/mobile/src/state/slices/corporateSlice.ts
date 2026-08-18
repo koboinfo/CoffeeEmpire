@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import {
   applyEffect,
+  bumpCityBrandAwareness,
   calculateDepartmentUpgradeCost,
   canEstablishHolding,
   canIncorporate,
@@ -24,10 +25,12 @@ export interface CorporateSlice {
   upgradeHeadquartersAction: () => void;
   upgradeDepartmentAction: (department: DepartmentType) => void;
   hireExecutive: (candidate: Employee) => void;
-  launchCampaign: (preset: MarketingCampaignPreset) => void;
+  launchCampaign: (preset: MarketingCampaignPreset, cityId?: string) => void;
   setExecutiveAutomation: (settings: Partial<ExecutiveAutomation>) => void;
   incorporate: () => void;
   establishHoldingAction: (distinctCityCount: number) => void;
+  /** ストックオプション/RSU相当の株式報酬を役員に付与する(月額、0で解除)。Phase A追加。 */
+  setEmployeeEquityCompensation: (employeeId: string, amountPerMonth: number) => void;
 }
 
 export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlice> = (set, get) => ({
@@ -78,7 +81,10 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
     set({ state: { ...state, employees: [...state.employees, candidate] } });
   },
 
-  launchCampaign: (preset) => {
+  // cityId指定時は都市限定キャンペーンとして扱い、グローバルなstatuses.brandAwarenessではなく
+  // その都市のbrandAwarenessByCityのみへ即時加点する(以後はturnEngineが期間中、毎ターン按分して積み増す)。
+  // cityId未指定時は従来通りグローバルへ即時加点する(後方互換)。
+  launchCampaign: (preset, cityId) => {
     const { state } = get();
     const campaign = {
       id: `campaign-${preset.type}-${state.turn}`,
@@ -87,7 +93,19 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
       durationTurns: preset.durationTurns,
       awarenessEffect: preset.awarenessEffect,
       startedAtTurn: state.turn,
+      ...(cityId ? { cityId } : {}),
     };
+
+    if (cityId) {
+      set({
+        state: {
+          ...state,
+          brandAwarenessByCity: bumpCityBrandAwareness(state.brandAwarenessByCity, cityId, preset.awarenessEffect),
+          activeCampaigns: [...state.activeCampaigns, campaign],
+        },
+      });
+      return;
+    }
 
     const { statuses } = applyEffect(state, { brandAwareness: preset.awarenessEffect });
 
@@ -115,5 +133,13 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
     const { state } = get();
     if (!canEstablishHolding(state, distinctCityCount)) return;
     set({ state: establishHolding(state, distinctCityCount) });
+  },
+
+  setEmployeeEquityCompensation: (employeeId, amountPerMonth) => {
+    const { state } = get();
+    const employees = state.employees.map((employee) =>
+      employee.id === employeeId ? { ...employee, equityCompensationPerMonth: Math.max(0, amountPerMonth) } : employee
+    );
+    set({ state: { ...state, employees } });
   },
 });

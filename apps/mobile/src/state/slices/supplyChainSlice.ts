@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import {
   calculateFarmAcquisitionPrice,
   calculateGreenBeanPurchase,
+  calculateMenuItemPreferenceScore,
   calculateRoastOutput,
   farms,
   type GreenBeanLot,
@@ -77,15 +78,26 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
 
     const { outputKg, qualityScore, costPerKg } = calculateRoastOutput([lot], roastLevel);
 
+    // 産地×焙煎度合いから顧客訴求スコア(preferenceScore)を算定し、batch.qualityScoreへ反映する
+    // (シングルオリジンの産地ストーリー性で加点。calculateRoastOutputの結果を上書きする形)。
+    const sourceFarm = farms.find((f) => f.id === lot.farmId);
+    const originCountries = sourceFarm ? [sourceFarm.country] : [];
+    const preferenceScore = calculateMenuItemPreferenceScore({
+      baseQualityScore: qualityScore,
+      originCountries,
+      isBlend: false,
+    });
+
     const batch: RoastBatch = {
       id: `batch-${lotId}-${state.turn}`,
       roasteryId,
       roastLevel,
       blend: [{ greenBeanLotId: lot.id, ratio: 1 }],
       outputKg,
-      qualityScore,
+      qualityScore: preferenceScore,
       costPerKg,
       roastedAtTurn: state.turn,
+      originCountries,
     };
 
     set({
@@ -110,7 +122,18 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
       return {
         ...store,
         menu: store.menu.map((item) =>
-          item.id === menuItemId ? { ...item, costOfGoods, qualityScore: batch.qualityScore } : item
+          item.id === menuItemId
+            ? {
+                ...item,
+                costOfGoods,
+                qualityScore: batch.qualityScore,
+                originBlend: {
+                  originCountries: batch.originCountries ?? [],
+                  isOriginalBlend: batch.blend.length > 1,
+                  blendName: batch.blendName,
+                },
+              }
+            : item
         ),
       };
     });
@@ -168,6 +191,20 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
       roastLevel
     );
 
+    // 複数産地を配合したオリジナルブレンドの目新しさを加点する(calculateMenuItemPreferenceScore)。
+    const originCountries = Array.from(
+      new Set(
+        lots
+          .map(({ lot }) => farms.find((f) => f.id === lot!.farmId)?.country)
+          .filter((country): country is string => Boolean(country))
+      )
+    );
+    const preferenceScore = calculateMenuItemPreferenceScore({
+      baseQualityScore: qualityScore,
+      originCountries,
+      isBlend: true,
+    });
+
     const batch: RoastBatch = {
       id: `batch-blend-${roasteryId}-${state.turn}-${Math.floor(Math.random() * 10000)}`,
       roasteryId,
@@ -175,9 +212,10 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
       blend: lots.map(({ lot, input }) => ({ greenBeanLotId: lot!.id, ratio: input.kg / totalKg })),
       blendName,
       outputKg,
-      qualityScore,
+      qualityScore: preferenceScore,
       costPerKg,
       roastedAtTurn: state.turn,
+      originCountries,
     };
 
     const consumedKgByLotId = new Map(inputs.map((input) => [input.lotId, input.kg]));

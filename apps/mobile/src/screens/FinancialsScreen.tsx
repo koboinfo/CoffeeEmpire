@@ -79,6 +79,7 @@ export function FinancialsScreen() {
   const { state } = useGameStore();
   const statements = state.history.incomeStatements;
   const latestBalanceSheet = state.history.balanceSheets[state.history.balanceSheets.length - 1];
+  const latestCashFlowStatement = state.history.cashFlowStatements[state.history.cashFlowStatements.length - 1];
   const [periodMode, setPeriodMode] = useState<'monthly' | 'yearly'>('monthly');
 
   const revenueSeries = useMemo(() => statements.map((s) => s.revenue), [statements]);
@@ -139,6 +140,19 @@ export function FinancialsScreen() {
           <PLRow label="資産合計" value={latestBalanceSheet.totalAssets} emphasis />
           <PLRow label="負債合計" value={latestBalanceSheet.totalLiabilities} />
           <PLRow label="資本合計" value={latestBalanceSheet.totalEquity} emphasis />
+        </View>
+      ) : null}
+
+      {latestCashFlowStatement ? (
+        <View className="gap-[2px] rounded-md border border-border bg-surface p-md">
+          <Text className="mb-xs text-xs font-medium text-text-secondary">
+            キャッシュフロー計算書(T{latestCashFlowStatement.turn})
+          </Text>
+          <PLRow label="営業キャッシュフロー" value={latestCashFlowStatement.operatingCashFlow} />
+          <PLRow label="投資キャッシュフロー" value={latestCashFlowStatement.investingCashFlow} />
+          <PLRow label="財務キャッシュフロー" value={latestCashFlowStatement.financingCashFlow} />
+          <PLRow label="現金増減" value={latestCashFlowStatement.netCashChange} emphasis />
+          <PLRow label="期末現金残高" value={latestCashFlowStatement.endingCash} emphasis />
         </View>
       ) : null}
 

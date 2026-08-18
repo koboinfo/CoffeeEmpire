@@ -235,10 +235,20 @@ export function SupplyChainScreen() {
       <Card>
         <SectionLabel icon="checkmark-done" label={`焙煎後在庫(${state.roastedInventory.length}バッチ)`} />
         {state.roastedInventory.map((batch) => (
-          <Text key={batch.id} style={styles.rowLabel}>
-            {batch.blendName ? `${batch.blendName} ・ ` : ''}
-            {ROAST_LEVELS.find((r) => r.level === batch.roastLevel)?.label} {batch.outputKg}kg (品質{batch.qualityScore})
-          </Text>
+          <View key={batch.id} style={styles.catalogRow}>
+            <Text style={styles.rowLabel}>
+              {batch.blendName ? `${batch.blendName} ・ ` : ''}
+              {ROAST_LEVELS.find((r) => r.level === batch.roastLevel)?.label} {batch.outputKg}kg
+            </Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.rowValue}>顧客訴求スコア{batch.qualityScore}</Text>
+              {batch.originCountries && batch.originCountries.length > 0 ? (
+                <Text style={styles.subLabel}>
+                  {batch.blend.length > 1 ? 'オリジナルブレンド' : 'シングルオリジン'} ・ {batch.originCountries.join(' x ')}
+                </Text>
+              ) : null}
+            </View>
+          </View>
         ))}
       </Card>
     </ScrollView>
