@@ -28,6 +28,16 @@ export interface ExecutiveAutomation {
   autoPricing: boolean; // CFO: 各店舗のメニュー価格を都市所得水準・品質に合わせて自動調整
   autoHiring: boolean; // COO: 無人店舗にバリスタを自動採用
   autoMarketing: boolean; // CMO: キャンペーンが無い時に最安プリセットを自動起動
+  /**
+   * Phase A追加のadditiveフィールド。部門ごとの自動化に「1ターンあたりの支出上限」を設ける。
+   * 未設定(旧セーブ含む)の項目は上限なし=既存の挙動(cashバッファ判定のみ)のまま後方互換。
+   */
+  departmentBudgets?: DepartmentAutomationBudgets;
+}
+
+export interface DepartmentAutomationBudgets {
+  hiringMonthlyBudget?: number; // COO自動採用: このターンに新規採用へ支出できる給与総額の上限
+  marketingMonthlyBudget?: number; // CMO自動宣伝: 自動起動して良いキャンペーンの予算上限
 }
 
 export interface Loan {
@@ -47,6 +57,11 @@ export interface MarketingCampaign {
   durationTurns: number;
   awarenessEffect: number; // 認知度ステータスへの効果量
   startedAtTurn: number;
+  /**
+   * Phase C追加のadditiveフィールド。設定時はこの都市のbrandAwarenessByCityのみを対象にする
+   * (グローバルなstatuses.brandAwarenessには影響しない)。未設定なら従来通りグローバル扱い(後方互換)。
+   */
+  cityId?: string;
 }
 
 export interface StockListing {
@@ -56,6 +71,12 @@ export interface StockListing {
   totalShares: number;
   publicFloatShares: number;
   dividendPerSharePerTurn: number;
+  /**
+   * Phase B追加のadditiveフィールド。publicFloatSharesの内訳のうち機関投資家保有分。
+   * 未設定(旧セーブ含む)は0として扱う(calculateOwnershipComposition参照)。
+   * founder保有分はtotalShares - publicFloatSharesの差分として暗黙的に扱う(既存設計を踏襲)。
+   */
+  institutionalFloatShares?: number;
 }
 
 export interface CompetitorBrand {

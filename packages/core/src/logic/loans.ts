@@ -1,4 +1,13 @@
 import type { Loan } from '../types/corporate.js';
+import type { CreditRatingResult } from './creditRating.js';
+
+/**
+ * 信用格付けを反映した融資オファー金利。基準金利(プリセットの表示金利)に
+ * 格付けごとのinterestRateMultiplierを乗算する。下限0.5%(実質ゼロ金利未満は非現実的なため)でクランプする。
+ */
+export function calculateLoanOfferRate(baseAnnualInterestRate: number, creditRating: CreditRatingResult): number {
+  return Math.max(0.005, Math.round(baseAnnualInterestRate * creditRating.interestRateMultiplier * 1000) / 1000);
+}
 
 /**
  * 元利均等返済(アニュイティ方式)の毎ターン返済額を算出する。

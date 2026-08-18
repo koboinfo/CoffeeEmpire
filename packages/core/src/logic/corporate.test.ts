@@ -15,7 +15,9 @@ import {
   calculateMarketShareRatio,
   calculateDynamicStockPrice,
   applyExecutiveAutomation,
+  calculateOwnershipComposition,
 } from './corporate.js';
+import type { StockListing } from '../types/corporate.js';
 
 test('upgradeHeadquarters: sizeTierが+1、rentPerMonthが1.3倍になる', () => {
   const hq: HeadquartersOffice = { id: 'hq-1', cityId: 'city-1', sizeTier: 1, rentPerMonth: 10000, departments: {} };
@@ -286,4 +288,101 @@ test('applyExecutiveAutomation: CMOが居てautoMarketing=trueなら最安プリ
   const result = applyExecutiveAutomation(state, automationContext, presets, () => 0.5);
   assert.equal(result.activeCampaigns.length, 1);
   assert.equal(result.activeCampaigns[0].type, 'localAd');
+});
+
+test('applyExecutiveAutomation: hiringMonthlyBudgetを超える採用は行われない(予算内のみ採用)', () => {
+  const state = makeAutomationState({
+    executiveAutomation: {
+      autoPricing: false,
+      autoHiring: true,
+      autoMarketing: false,
+      departmentBudgets: { hiringMonthlyBudget: 1 }, // どんな候補の給与よりも小さい上限
+    },
+    employees: [
+      {
+        id: 'exec-coo',
+        name: 'COO Jiro',
+        role: 'executive',
+        executiveTitle: 'COO',
+        skillLevel: 80,
+        salaryPerMonth: 9000,
+        motivation: 70,
+        hiredAtTurn: 0,
+      },
+    ],
+    stores: [
+      {
+        id: 'store-1',
+        propertyId: 'prop-1',
+        name: 'Store',
+        equipment: [],
+        menu: [],
+        employeeIds: [],
+        openedAtTurn: 0,
+        cumulativeCustomerSatisfaction: 60,
+        operatingHours: { open: 7, close: 21 },
+      },
+    ],
+  });
+  const result = applyExecutiveAutomation(state, automationContext, noPresets, () => 0.5);
+  assert.equal(result.stores[0].employeeIds.length, 0);
+  assert.equal(result.employees.length, 1);
+});
+
+test('applyExecutiveAutomation: marketingMonthlyBudget以下のプリセットのみ自動起動候補になる', () => {
+  const presets: MarketingCampaignPreset[] = [
+    { type: 'localAd', label: '地域広告', budget: 2000, durationTurns: 3, awarenessEffect: 5 },
+    { type: 'digitalAd', label: 'デジタル広告', budget: 500, durationTurns: 3, awarenessEffect: 10 },
+  ];
+  const state = makeAutomationState({
+    executiveAutomation: {
+      autoPricing: false,
+      autoHiring: false,
+      autoMarketing: true,
+      departmentBudgets: { marketingMonthlyBudget: 1000 }, // localAd(2000)は対象外、digitalAd(500)のみ対象
+    },
+    employees: [
+      {
+        id: 'exec-cmo',
+        name: 'CMO Hanako',
+        role: 'executive',
+        executiveTitle: 'CMO',
+        skillLevel: 80,
+        salaryPerMonth: 9000,
+        motivation: 70,
+        hiredAtTurn: 0,
+      },
+    ],
+  });
+  const result = applyExecutiveAutomation(state, automationContext, presets, () => 0.5);
+  assert.equal(result.activeCampaigns.length, 1);
+  assert.equal(result.activeCampaigns[0].type, 'digitalAd');
+});
+
+function makeStock(overrides: Partial<StockListing> = {}): StockListing {
+  return { isPublic: true, sharePrice: 500, totalShares: 100_000, publicFloatShares: 30_000, dividendPerSharePerTurn: 0, ...overrides };
+}
+
+test('calculateOwnershipComposition: institutionalFloatShares未設定なら機関投資家保有0%', () => {
+  const result = calculateOwnershipComposition(makeStock());
+  assert.equal(result.founderShares, 70_000);
+  assert.equal(result.institutionalShares, 0);
+  assert.equal(result.retailPublicShares, 30_000);
+  assert.equal(result.founderPercent, 70);
+  assert.equal(result.retailPublicPercent, 30);
+});
+
+test('calculateOwnershipComposition: institutionalFloatSharesがpublicFloatSharesの内訳として按分される', () => {
+  const result = calculateOwnershipComposition(makeStock({ institutionalFloatShares: 18_000 }));
+  assert.equal(result.institutionalShares, 18_000);
+  assert.equal(result.retailPublicShares, 12_000);
+  assert.equal(result.institutionalPercent, 18);
+  assert.equal(result.retailPublicPercent, 12);
+});
+
+test('calculateOwnershipComposition: totalShares=0なら全て0%', () => {
+  const result = calculateOwnershipComposition(makeStock({ totalShares: 0, publicFloatShares: 0 }));
+  assert.equal(result.founderPercent, 0);
+  assert.equal(result.institutionalPercent, 0);
+  assert.equal(result.retailPublicPercent, 0);
 });

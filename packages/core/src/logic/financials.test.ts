@@ -8,6 +8,7 @@ import {
   calculateStoreRevenue,
   calculateInteriorQualityFactor,
   calculatePayroll,
+  calculateEquityCompensationExpense,
   calculatePL,
   categorizeExpenses,
   calculateTax,
@@ -112,6 +113,23 @@ test('calculatePayroll: 給与の単純合計', () => {
     { id: 'e2', name: 'B', role: 'storeManager' as const, skillLevel: 70, salaryPerMonth: 3500, motivation: 80, hiredAtTurn: 0 },
   ];
   assert.equal(calculatePayroll(employees), 5500);
+});
+
+test('calculateEquityCompensationExpense: equityCompensationPerMonthの合計を返す(未設定は0扱い)', () => {
+  const employees = [
+    {
+      id: 'e1',
+      name: 'A',
+      role: 'executive' as const,
+      skillLevel: 90,
+      salaryPerMonth: 700_000,
+      motivation: 80,
+      hiredAtTurn: 0,
+      equityCompensationPerMonth: 50_000,
+    },
+    { id: 'e2', name: 'B', role: 'barista' as const, skillLevel: 50, salaryPerMonth: 180_000, motivation: 80, hiredAtTurn: 0 },
+  ];
+  assert.equal(calculateEquityCompensationExpense(employees), 50_000);
 });
 
 test('calculatePL: 基盤④README準拠でrevenue/costs/profitを返す', () => {

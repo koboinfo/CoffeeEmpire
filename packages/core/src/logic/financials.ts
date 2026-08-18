@@ -73,6 +73,15 @@ export function calculatePayroll(employees: Employee[]): number {
   return employees.reduce((sum, employee) => sum + employee.salaryPerMonth, 0);
 }
 
+/**
+ * ストックオプション/RSU相当の株式報酬費用(月額換算)。calculatePayrollと同じ集計パターン。
+ * 会計上は費用としてP&L(fixedCost)に計上する一方、現金支出を伴わない(非資金費用)ため、
+ * turnEngine側では減価償却と同じ「営業キャッシュフローへの足し戻し」対象として扱う。
+ */
+export function calculateEquityCompensationExpense(employees: Employee[]): number {
+  return employees.reduce((sum, employee) => sum + (employee.equityCompensationPerMonth ?? 0), 0);
+}
+
 export function calculateDepreciationTotal(schedules: DepreciationSchedule[]): number {
   return schedules.reduce((sum, schedule) => sum + schedule.monthlyDepreciation, 0);
 }
@@ -114,7 +123,8 @@ export function categorizeExpenses(items: PLLineItem[], extraOther = 0): Expense
     if (item.key.startsWith('rent:')) rent += item.amount;
     else if (item.key.startsWith('cogs:')) cogs += item.amount;
     else if (item.key.startsWith('utilities:')) utilities += item.amount;
-    else if (item.key === 'payroll' || item.key === 'employerSocialInsurance') labor += item.amount;
+    else if (item.key === 'payroll' || item.key === 'employerSocialInsurance' || item.key === 'equityCompensation')
+      labor += item.amount;
     else other += item.amount;
   }
 

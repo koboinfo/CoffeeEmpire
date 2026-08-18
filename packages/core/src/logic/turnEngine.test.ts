@@ -616,3 +616,54 @@ test('advanceTurn: クリア条件(HD化+IPO+店舗数20以上)を満たすとis
   const { nextState: nextAfterShrink } = advanceTurn(shrunkState, context, [], () => 1);
   assert.equal(nextAfterShrink.isVictoryAchieved, true);
 });
+
+test('advanceTurn: 株式報酬費用(equityCompensationPerMonth)がplItemsに計上され、非資金費用としてcashへは即座に響かない', () => {
+  const employees = [
+    {
+      id: 'exec-1',
+      name: 'CEO',
+      role: 'executive' as const,
+      executiveTitle: 'CFO' as const,
+      skillLevel: 90,
+      salaryPerMonth: 0, // 給与自体は無関係(payrollと切り分けて検証するため0)
+      motivation: 80,
+      hiredAtTurn: 0,
+      equityCompensationPerMonth: 100_000,
+    },
+  ];
+  const stateWithEquity = makeState({ employees });
+  const stateWithoutEquity = makeState({ employees: [{ ...employees[0], equityCompensationPerMonth: 0 }] });
+
+  const { plItems, nextState: withEquityState } = advanceTurn(stateWithEquity, context, [], () => 1);
+  const { nextState: withoutEquityState } = advanceTurn(stateWithoutEquity, context, [], () => 1);
+
+  assert.ok(plItems.some((item) => item.key === 'equityCompensation' && item.amount === 100_000));
+  // 非資金費用として営業CFへ足し戻されるため、費用計上の有無でcashの着地額は変わらない
+  assert.equal(withEquityState.cash, withoutEquityState.cash);
+});
+
+test('advanceTurn: cityId付きキャンペーンが稼働中の都市は認知度が上がり売上が増える', () => {
+  const stateWithCampaign = makeState({
+    activeCampaigns: [
+      {
+        id: 'campaign-1',
+        type: 'brandSponsorship',
+        budget: 0,
+        durationTurns: 6,
+        awarenessEffect: 60,
+        startedAtTurn: 0,
+        cityId: 'city-1',
+      },
+    ],
+  });
+  const stateWithoutCampaign = makeState({});
+
+  const { nextState: withCampaign } = advanceTurn(stateWithCampaign, context, [], () => 1);
+  const { plItems: plItemsWithout } = advanceTurn(stateWithoutCampaign, context, [], () => 1);
+  const { plItems: plItemsWith } = advanceTurn(stateWithCampaign, context, [], () => 1);
+
+  assert.ok((withCampaign.brandAwarenessByCity?.['city-1'] ?? 0) > 20);
+  const revenueWith = plItemsWith.find((item) => item.key === 'revenue:store-1')?.amount ?? 0;
+  const revenueWithout = plItemsWithout.find((item) => item.key === 'revenue:store-1')?.amount ?? 0;
+  assert.ok(revenueWith > revenueWithout);
+});

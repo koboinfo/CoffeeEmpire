@@ -84,6 +84,12 @@ export interface CoffeeEmpireState extends SimState {
   executiveAutomation: ExecutiveAutomation;
   loans: Loan[];
   researchUnlockedIds: string[];
+  /**
+   * Phase C追加のadditiveフィールド。都市ごとのブランド認知度(0-100、cityId -> 値)。
+   * 既存のグローバルなstatuses.brandAwarenessとは別軸で並存させる(後方互換のため既存は無変更)。
+   * 未設定(旧セーブ含む)のキーはgetCityBrandAwarenessのデフォルト値(baseline)として扱う。
+   */
+  brandAwarenessByCity?: Record<string, number>;
   history: {
     incomeStatements: IncomeStatement[];
     balanceSheets: BalanceSheet[];

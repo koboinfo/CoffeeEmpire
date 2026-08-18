@@ -37,6 +37,16 @@ export interface MenuItem {
   currentPrice: number; // 動的に変更可能
   costOfGoods: number; // 原材料原価(ブレンド・仕入コストから算出)
   qualityScore: number; // 0-100
+  /**
+   * Phase C追加のadditiveフィールド。焙煎バッチ由来の産地・ブレンド情報(applyRoastedBatchToMenuItem経由で設定)。
+   * 表示・オリジナルメニュー訴求用のメタデータで、qualityScore自体は既にcalculateMenuItemPreferenceScore
+   * (logic/supplyChain.ts)を経由してバッチ作成時に加点済みのため、この情報自体は売上計算には使わない。
+   */
+  originBlend?: {
+    originCountries: string[];
+    isOriginalBlend: boolean;
+    blendName?: string;
+  };
 }
 
 export interface OperatingHours {

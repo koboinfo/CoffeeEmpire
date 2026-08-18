@@ -9,6 +9,7 @@ import {
   calculateStoreRevenue,
   calculateInteriorQualityFactor,
   calculatePayroll,
+  calculateEquityCompensationExpense,
   buildIncomeStatementWithTax,
   calculateStoresDepreciationAndNetBookValue,
   calculateInventoryValue,
@@ -21,6 +22,12 @@ import { rollEvents, applyEffect } from './events.js';
 import { resolveEventEffect } from '../data/eventEffectRanges.js';
 import { rollStoreEvents } from './storeEvents.js';
 import { calculateSeasonalFactor } from './seasonality.js';
+import {
+  decayBrandAwarenessByCity,
+  bumpCityBrandAwareness,
+  getCityBrandAwareness,
+  calculateCityAwarenessRevenueFactor,
+} from './branding.js';
 import { applyExecutiveAutomation, calculateDynamicStockPrice, calculateMarketShareRatio } from './corporate.js';
 import { serviceLoans } from './loans.js';
 import { calculateCompetitivePressure, simulateCompetitorTurn } from './competitorAI.js';
@@ -113,6 +120,20 @@ export function advanceTurn(
   // 季節変動係数(夏場のアイス需要・年末商戦などで月ごとに売上が±20〜30%ほど揺れる)。全店舗一律に適用する。
   const seasonalFactor = calculateSeasonalFactor(state.turn + 1);
 
+  // 都市ごとのブランド認知度(Phase C追加)。まずbaselineへ向けて全都市を一律減衰させ、
+  // 稼働中のcityId付きキャンペーンがあればそのキャンペーン期間中、毎ターン按分した効果量を加点する。
+  // 既存のグローバルstatuses.brandAwareness(イベント/launchCampaignの即時付与)は無変更で並存させる。
+  let cityBrandAwareness = decayBrandAwarenessByCity(state.brandAwarenessByCity);
+  for (const campaign of state.activeCampaigns) {
+    if (!campaign.cityId) continue;
+    if (state.turn - campaign.startedAtTurn >= campaign.durationTurns) continue;
+    cityBrandAwareness = bumpCityBrandAwareness(
+      cityBrandAwareness,
+      campaign.cityId,
+      campaign.awarenessEffect / campaign.durationTurns
+    );
+  }
+
   const plItems: PLLineItem[] = [];
   const storeReports: Record<string, StoreReport> = {};
   const triggeredStoreEvents: TriggeredStoreEvent[] = [];
@@ -137,6 +158,7 @@ export function advanceTurn(
     // 競合の出店密度による需要干渉(0.5-1.0倍)。都市内の競合店舗が多いほど客足が落ちる。
     const competitivePressure = calculateCompetitivePressure(property.cityId, state.competitorBrands);
     const interiorQualityFactor = calculateInteriorQualityFactor(store.equipment);
+    const cityAwarenessFactor = calculateCityAwarenessRevenueFactor(getCityBrandAwareness(cityBrandAwareness, property.cityId));
 
     // 店舗ごとイベント(機材故障/ストライキ/賃料値上げ/SNSバズり/悪評)を1店舗ずつ独立判定する。
     const storeEmployees = state.employees.filter((employee) => employee.assignedStoreId === store.id);
@@ -163,14 +185,16 @@ export function advanceTurn(
       researchEffects.revenueMultiplier *
       interiorQualityFactor *
       storeEventRevenueMultiplier *
-      seasonalFactor;
+      seasonalFactor *
+      cityAwarenessFactor;
     const variableCost =
       rawRevenue.variableCost *
       competitivePressure *
       researchEffects.costMultiplier *
       interiorQualityFactor *
       storeEventRevenueMultiplier *
-      seasonalFactor;
+      seasonalFactor *
+      cityAwarenessFactor;
     plItems.push({ key: `revenue:${store.id}`, label: `${store.name} 売上`, amount: revenue, kind: 'revenue' });
     storeReports[store.id] = { storeId: store.id, revenue, customers: rawRevenue.customers };
     plItems.push({
@@ -213,6 +237,18 @@ export function advanceTurn(
   const payroll = calculatePayroll(state.employees);
   if (state.employees.length > 0) {
     plItems.push({ key: 'payroll', label: '人件費', amount: payroll, kind: 'fixedCost' });
+  }
+
+  // ストックオプション/RSU相当の株式報酬費用(Phase A追加)。会計上はP&Lの費用として計上するが、
+  // 現金支出を伴わない非資金費用のため、下のoperatingCashFlow算定で減価償却と同様に足し戻す。
+  const equityCompensationExpense = calculateEquityCompensationExpense(state.employees);
+  if (equityCompensationExpense > 0) {
+    plItems.push({
+      key: 'equityCompensation',
+      label: '株式報酬費用',
+      amount: equityCompensationExpense,
+      kind: 'fixedCost',
+    });
   }
 
   // 社会保険料(健康保険・厚生年金)の事業主負担。法人成り後、給与総額に連動して
@@ -313,7 +349,8 @@ export function advanceTurn(
   const longTermDebt = loanServicing.updatedLoans.reduce((sum, loan) => sum + loan.remainingPrincipal, 0);
   const paidInCapitalChange = capitalInjection;
 
-  const operatingCashFlow = incomeStatement.netIncome + totalMonthlyDepreciation + eventCashEffect;
+  // 減価償却と同じく、株式報酬費用(非資金費用)もnetIncomeから足し戻して営業キャッシュフローを算定する。
+  const operatingCashFlow = incomeStatement.netIncome + totalMonthlyDepreciation + equityCompensationExpense + eventCashEffect;
   const investingCashFlow = 0;
   const dividendPayout = state.stock.isPublic
     ? state.stock.dividendPerSharePerTurn * state.stock.publicFloatShares
@@ -405,6 +442,7 @@ export function advanceTurn(
     ownedFarms: ownedFarmsAfterHarvest,
     stores: storesAfterEvents,
     employees: employeesAfterEvents,
+    brandAwarenessByCity: cityBrandAwareness,
     fiscalPeriod: { accumulatedPretaxIncome: nextAccumulatedPretaxIncome },
     // 黒字倒産: 決算での一括納税等でcashが一度でもマイナスになったらtrueのまま固定する。
     isBankrupt: state.isBankrupt || cashFlowStatement.endingCash < 0,

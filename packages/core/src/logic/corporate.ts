@@ -1,4 +1,4 @@
-import type { HeadquartersOffice, CompetitorBrand, DepartmentType } from '../types/corporate.js';
+import type { HeadquartersOffice, CompetitorBrand, DepartmentType, StockListing } from '../types/corporate.js';
 import type { Property, City } from '../types/store.js';
 import type { CoffeeEmpireState } from '../types/simState.js';
 import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.js';
@@ -150,15 +150,20 @@ export function applyExecutiveAutomation(
 
   if (state.executiveAutomation.autoHiring && hasExecutive('COO')) {
     const cashBuffer = (candidateSalary: number) => state.cash > candidateSalary * AUTO_HIRE_CASH_BUFFER_MONTHS;
+    // Phase A追加: 部門予算上限(未設定なら従来通り無制限、cashバッファ判定のみで採用可否を決める)。
+    const hiringBudget = state.executiveAutomation.departmentBudgets?.hiringMonthlyBudget;
+    let hiringSpent = 0;
     const newHires: typeof employees = [];
 
     stores = stores.map((store) => {
       if (store.employeeIds.length > 0) return store;
       const [candidate] = generateEmployeeCandidates('barista', 1, state.turn, rng);
       if (!candidate || !cashBuffer(candidate.salaryPerMonth)) return store;
+      if (hiringBudget !== undefined && hiringSpent + candidate.salaryPerMonth > hiringBudget) return store;
 
       const hired = { ...candidate, assignedStoreId: store.id };
       newHires.push(hired);
+      hiringSpent += candidate.salaryPerMonth;
       return { ...store, employeeIds: [...store.employeeIds, hired.id] };
     });
 
@@ -168,7 +173,14 @@ export function applyExecutiveAutomation(
   }
 
   if (state.executiveAutomation.autoMarketing && hasExecutive('CMO') && activeCampaigns.length === 0) {
-    const cheapestPreset = marketingPresets.reduce<MarketingCampaignPreset | undefined>(
+    // Phase A追加: 部門予算上限が設定されていれば、その上限以下のプリセットの中で最安を選ぶ
+    // (未設定なら従来通り全プリセットから最安を選ぶ=後方互換)。
+    const marketingBudget = state.executiveAutomation.departmentBudgets?.marketingMonthlyBudget;
+    const eligiblePresets =
+      marketingBudget !== undefined
+        ? marketingPresets.filter((preset) => preset.budget <= marketingBudget)
+        : marketingPresets;
+    const cheapestPreset = eligiblePresets.reduce<MarketingCampaignPreset | undefined>(
       (cheapest, preset) => (!cheapest || preset.budget < cheapest.budget ? preset : cheapest),
       undefined
     );
@@ -188,4 +200,37 @@ export function applyExecutiveAutomation(
   }
 
   return { ...state, stores, employees, activeCampaigns };
+}
+
+export interface OwnershipComposition {
+  founderShares: number;
+  institutionalShares: number;
+  retailPublicShares: number;
+  founderPercent: number;
+  institutionalPercent: number;
+  retailPublicPercent: number;
+}
+
+/**
+ * 株主構成(創業者/機関投資家/個人投資家)の内訳。founderSharesは
+ * totalShares - publicFloatSharesの差分として暗黙的に扱う(既存のStockListing設計を踏襲、
+ * 新規フィールドを追加しない)。institutionalFloatSharesは未設定なら0(全て個人投資家保有)扱い。
+ */
+export function calculateOwnershipComposition(stock: StockListing): OwnershipComposition {
+  const totalShares = Math.max(0, stock.totalShares);
+  const publicFloatShares = clamp(stock.publicFloatShares, 0, totalShares);
+  const institutionalShares = clamp(stock.institutionalFloatShares ?? 0, 0, publicFloatShares);
+  const retailPublicShares = publicFloatShares - institutionalShares;
+  const founderShares = totalShares - publicFloatShares;
+
+  const percentOf = (shares: number) => (totalShares > 0 ? Math.round((shares / totalShares) * 1000) / 10 : 0);
+
+  return {
+    founderShares,
+    institutionalShares,
+    retailPublicShares,
+    founderPercent: percentOf(founderShares),
+    institutionalPercent: percentOf(institutionalShares),
+    retailPublicPercent: percentOf(retailPublicShares),
+  };
 }

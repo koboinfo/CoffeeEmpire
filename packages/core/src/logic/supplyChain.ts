@@ -71,6 +71,30 @@ export function calculateRoastOutput(lots: RoastableLot[], roastLevel: RoastLeve
   return { outputKg, qualityScore, costPerKg };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+export interface MenuItemPreferenceInputs {
+  baseQualityScore: number; // calculateRoastOutputのqualityScore(産地Qグレード×焙煎度合い)
+  originCountries: string[]; // 投入した生豆ロットの原産国(重複除去済み)
+  isBlend: boolean; // 複数ロットを配合した焙煎(roastBlend)かどうか
+}
+
+/**
+ * 産地×焙煎度合い×ブレンド比率から、メニューの顧客訴求スコア(0-100)を算出する。
+ * calculateRoastOutputのqualityScoreをベースに、シングルオリジンの産地ストーリー性
+ * (+4)、複数産地を配合したオリジナルブレンドの目新しさ(+6)を加点する
+ * (両立はしない: ブレンドはisBlend=trueのため必ずoriginCountries.length>=2になる)。
+ * この結果をRoastBatch.qualityScore→MenuItem.qualityScoreとして流用することで、
+ * calculateStoreRevenue自体には手を入れずaverageMenuQuality経由で売上に反映される。
+ */
+export function calculateMenuItemPreferenceScore(inputs: MenuItemPreferenceInputs): number {
+  const blendNoveltyBonus = inputs.isBlend ? 6 : 0;
+  const singleOriginStoryBonus = !inputs.isBlend && inputs.originCountries.length === 1 ? 4 : 0;
+  return Math.round(clamp(inputs.baseQualityScore + blendNoveltyBonus + singleOriginStoryBonus, 0, 100));
+}
+
 /**
  * 自社農園の買収価格。月産量×市場単価の24ヶ月分を目安にする(不動産投資評価と同系統のロジック)。
  */

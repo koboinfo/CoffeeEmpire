@@ -37,6 +37,8 @@ export interface RoastBatch {
   qualityScore: number; // 元Qグレード×焙煎適合度で算出
   costPerKg: number; // 投入生豆コスト合計÷歩留まり後kg(メニュー原価算定に使う)
   roastedAtTurn: number;
+  /** Phase C追加のadditiveフィールド。投入した生豆ロットの原産国(重複除去、表示・preferenceScore算定用)。 */
+  originCountries?: string[];
 }
 
 /**

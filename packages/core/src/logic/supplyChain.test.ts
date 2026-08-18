@@ -6,6 +6,7 @@ import {
   calculateRoastOutput,
   calculateFarmAcquisitionPrice,
   calculateOwnedFarmHarvest,
+  calculateMenuItemPreferenceScore,
 } from './supplyChain.js';
 
 function makeFarm(overrides: Partial<Farm> = {}): Farm {
@@ -102,4 +103,31 @@ test('calculateOwnedFarmHarvest: 維持費は市場単価より大幅に低い(�
   const ownedResult = calculateOwnedFarmHarvest(farm, () => 0.9);
   const marketCost = 1000 * 5; // 市場でそのまま買った場合の単純比較
   assert.ok(ownedResult.maintenanceCost < marketCost * 0.5);
+});
+
+test('calculateMenuItemPreferenceScore: シングルオリジンは産地ストーリー性で+4される', () => {
+  const score = calculateMenuItemPreferenceScore({
+    baseQualityScore: 80,
+    originCountries: ['brazil'],
+    isBlend: false,
+  });
+  assert.equal(score, 84);
+});
+
+test('calculateMenuItemPreferenceScore: オリジナルブレンドは目新しさで+6される', () => {
+  const score = calculateMenuItemPreferenceScore({
+    baseQualityScore: 80,
+    originCountries: ['brazil', 'ethiopia'],
+    isBlend: true,
+  });
+  assert.equal(score, 86);
+});
+
+test('calculateMenuItemPreferenceScore: 100を超えない', () => {
+  const score = calculateMenuItemPreferenceScore({
+    baseQualityScore: 98,
+    originCountries: ['brazil', 'ethiopia'],
+    isBlend: true,
+  });
+  assert.equal(score, 100);
 });

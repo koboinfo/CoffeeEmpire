@@ -24,6 +24,8 @@ export * from './logic/taxes.js';
 export * from './logic/incorporation.js';
 export * from './logic/achievements.js';
 export * from './logic/gameOutcome.js';
+export * from './logic/creditRating.js';
+export * from './logic/branding.js';
 
 export * from './data/cities.js';
 export * from './data/farms.js';
