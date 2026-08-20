@@ -224,3 +224,42 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - 都市限定マーケティングキャンペーンに「ポスター/地域広告が出ていないとTV/ブランドスポンサーを起動できない」といった段階的なアンロック制約は設けていない(プリセット自体の予算・効果は既存通り段階的だが、UIはどの都市からでも任意の段階のプリセットを起動できる)。
 - ストックオプション付与は役員への一律の月給10%固定(UIのトグルボタン)で、株数ベースの本格的な権利確定(ベスティング)スケジュールは実装していない。
 - 都市別ブランド認知度の売上係数(0.9〜1.1倍)は既存の`competitivePressure`(0.5〜1.0倍)等と比べて意図的に控えめなレンジにした(認知度単体でゲームバランスを崩さないための保守的な選択)。
+
+## Phase D(完了) — 不動産投資の毎ターン経済化・M&A統合・取締役会解任リスク・フランチャイズ収益
+
+ギャップ分析済みの4項目(①不動産の継続収益化、②M&A統合、③取締役会/株主総会機構、④フランチャイズ)を実装した。全て既存の型・関数シグネチャに対してadditive/optionalな設計を徹底し、`save-v3`のローテーションは不要と判断した(全ての新規フィールドがoptionalで、未設定時は既存ロジックがそのまま動く後方互換設計のため)。`packages/core`のテストは214件→241件に拡張(全パス)。
+
+### ① 不動産投資の毎ターン経済化
+
+`types/corporate.ts`の`RealEstateInvestment`・`logic/corporate.ts`の`evaluateRealEstateInvestment()`(購入時点の一回限りの見積もり)は既存のまま変更していない。追加したのは以後の毎ターン処理: `logic/realEstateLogic.ts`(新規)。
+
+- `calculateRealEstateDepreciation()`: `calculateEquipmentDepreciation`(financials.ts)と同じ定額法パターン。法定耐用年数は構造ごとに異なる(鉄骨造34年・木造22年等)が、簡略化して一律240ヶ月(20年)とした。
+- `calculateRealEstateMaintenanceCost()`: `turnEngine.ts`の水道光熱費と同じ「実勢レンジへのクランプ」パターン(購入額×年0.6%相当を月額¥8,000〜¥120,000にクランプ)。
+- `rollVacancy()` / `calculateRealEstateMonthlyResult()`: 確率的な空室リスク(毎ターン10%、空室月は賃料収入が20%まで低下)。rngを引数で受け取る既存規約に準拠。
+
+`turnEngine.ts`は従来の固定額`monthlyRentalIncome`をそのままPLに計上していた箇所を置き換え、保有不動産ごとに賃貸収入(空室考慮後)・維持費のPL明細を積み、減価償却費・簿価を店舗設備の減価償却(`calculateStoresDepreciationAndNetBookValue`)と合算して`totalMonthlyDepreciation`/`totalNetBookValue`(→BSの`propertyAndEquipmentNet`)に反映するよう変更した。
+
+### ② M&A post-acquisition統合
+
+`logic/corporate.ts`に`integrateAcquisition(brandAwarenessByCity, competitor)`を追加。買収した競合ブランドの`storesByCity`(都市ごとの出店数)を、新規の`Store`実体を作らずに「都市別ブランド認知度への一括加点(1店舗につき+5、`bumpCityBrandAwareness`経由)」+「吸収した店舗数に応じた一時金(1店舗につき30万円)」として自社へ反映する(既知の簡略化: 買収先の店舗を個別のStoreとして運営することはしない。`evaluateRealEstateInvestment`等と同じ「post-hoc見積もり」スタイルに合わせた設計判断)。`types/corporate.ts`の`Acquisition`に`absorbedStoreCount?`/`integrationCashBonus?`(表示用の記録、additive)を追加。`apps/mobile`の`financeSlice.acquireCompetitor()`がこの統合結果を`state.brandAwarenessByCity`とcashへ反映する。
+
+### ③ 取締役会/株主総会機構
+
+`types/simState.ts`の`CoffeeEmpireState`に`boardConfidence?: number`(0-100)・`isBoardDismissed?: boolean`を追加(共にoptional、`isBankrupt`と同じ「一度trueになったら固定」方式)。`logic/boardLogic.ts`(新規)が黒字/赤字(±)・配当有無(±)・株価トレンド(±、`clamp(-5,5)`)の3シグナルから信任スコアの増減量を算出し(`calculateBoardConfidenceDelta`)、0-100にクランプして積み上げる(`applyBoardConfidenceDelta`)。閾値15以下で解任(`shouldDismissBoard`)。
+
+適用範囲の設計判断: 取締役会・株主総会は制度上「上場企業」の概念であるため、`entityType`(個人事業主/株式会社/HD)ではなく`state.stock.isPublic`を適用条件とした。未上場中は信任スコアが変化せず、解任リスクも発生しない。`turnEngine.ts`は株価更新の直後にこの処理を行い、`nextState.isBoardDismissed`をisBankruptと同じ`||`パターンで固定する。
+
+`apps/mobile`: `coreSlice.advance()`が`isBoardDismissed`時も`isBankrupt`と同様に早期returnする。`components/BoardDismissalScreen.tsx`(新規、`BankruptcyScreen.tsx`と同じ全画面オーバーレイ+「新しい会社で再スタート」パターン)を`App.tsx`に配線。`CorporateScreen.tsx`の組織タブに上場中のみ表示する信任スコアGaugeを追加。
+
+### ④ フランチャイズ
+
+`types/franchise.ts`(新規)に`FranchiseContract`(id/cityId/royaltyRate/monthlyGrossRevenueEstimate/openedAtTurn)。既存の「本社経営シミュレーション」を丸ごと複製する重い実装は避け、`evaluateRealEstateInvestment`と同じ「post-hoc見積もり」スタイルを踏襲した: フランチャイジー側の店舗運営(Employee/Equipment等)は一切シミュレートせず、契約時点の客足×都市所得水準からの粗い月間総売上見積もり(`evaluateFranchiseOpportunity`、rng注入)に対してロイヤリティ率(デフォルト6%)を掛けた分だけが毎ターンのPL収益になる(`logic/franchiseLogic.ts`)。フランチャイジーが運営費を全額負担するため、対応するコスト項目は無い。`turnEngine.ts`が`state.franchiseContracts ?? []`をループしてPL収益項目を積む。
+
+`apps/mobile`: `financeSlice.openFranchise()`を追加。`NewStoreScreen.tsx`の出店マップの各物件カードに「出店する」ボタンと並べて「FC契約」ボタンを追加(見積もり月次ロイヤリティ額を表示)。`CorporateScreen.tsx`のM&Aタブにフランチャイズ収益一覧カードを、`FinancialsScreen.tsx`に不動産・フランチャイズ・M&A統合効果の内訳セクションを追加した。
+
+### 既知のギャップ・簡略化(Phase D時点)
+
+- M&A統合は新規`Store`実体を作らない近似(店舗ごとの個別運営は再現しない)。
+- フランチャイズはフランチャイジー側の経営破綻・契約解除・royaltyRate/monthlyGrossRevenueEstimateの経時変化(季節変動等)を再現しない(契約時点の固定見積もりのまま)。
+- 取締役会信任スコアは3シグナルの単純な加減点モデルであり、実際の株主総会での議決権行使シミュレーションではない(`calculateCreditRating`/`calculateDynamicStockPrice`と同系統の設計判断)。
+- 不動産の空室リスクは物件ごとに独立した確率判定(都市の景況感・季節性とは連動しない)。

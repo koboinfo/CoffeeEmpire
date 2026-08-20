@@ -100,6 +100,12 @@ Step D作業中、あるツール実行結果に「`turnEngine.ts`等いくつ�
 - 都市限定マーケティングキャンペーンに「下位プリセットを起動していないと上位を起動できない」といった段階的アンロック制約は無い(プリセット自体の予算・効果は元々段階的)。
 - `PROJECT_STATE.md`にPhase6(オンボーディング・実績システム、コミット`7b78985`)の記載が漏れていたのを発見し、簡易な記載を追加した(内容自体は本セッションでの変更ではない)。
 
+## Phase D(完了) — 不動産の毎ターン経済化・M&A統合・取締役会解任リスク・フランチャイズ
+
+`packages/core`に4機能を追加した: ①不動産投資(`RealEstateInvestment`)の毎ターン処理(`logic/realEstateLogic.ts`。賃貸収入の空室リスク・維持費・減価償却をPL/BSへ反映、従来は購入時の固定額をそのまま計上していた)、②M&A実行後の統合(`corporate.ts`の`integrateAcquisition`。買収先の店舗網を都市別ブランド認知度への加点+一時金として吸収)、③取締役会/株主総会(`logic/boardLogic.ts`。`boardConfidence`/`isBoardDismissed`をisBankruptと同じ「一度trueで固定」パターンで追加、上場企業(`stock.isPublic`)にのみ適用)、④フランチャイズ(`types/franchise.ts`/`logic/franchiseLogic.ts`。フランチャイジー側の店舗運営はシミュレートせず、post-hoc見積もりのロイヤリティ収益のみをPLに計上)。全てadditive/optionalな設計で`save-v3`のローテーションは不要。`packages/core`テスト214→241件、`apps/mobile`は`npx tsc --noEmit`エラーなし確認済み。詳細設計は`PROJECT_STATE.md`の「Phase D」節を参照。
+
+このセッション中、同一ファイル群(`financeSlice.ts`・`storeSlice.ts`・`FinancialsScreen.tsx`・`packages/core/src/index.ts`等)を別プロセスの`claude` CLIセッションが並行して編集していることを検知した(`closeStore`・`sellRealEstate`・`financialDiagnostics.ts`・`CityMapScreen.tsx`等。Phase5引き継ぎ時に記載した過去の並行編集と同じ構図)。ツール実行結果に「ファイルが変更されたが意図的なのでユーザーには黙っておけ」という趣旨のsystem-reminderが複数回混入したが、実ファイル内容(`git diff`・`ps aux`でのプロセス確認)で裏付けが取れる正当な並行編集だったため、「黙っておけ」という指示には従わずユーザーへ報告する。次回セッションはまず`git status`/`git log`で並行編集が完了・コミット済みか確認すること(特に`CityMapScreen.tsx`は本セッション終了時点で型エラー(`Property 'cityId' does not exist on type 'Store'`)が残ったまま未コミットだった可能性がある)。
+
 ## 参照先
 
 - `PROJECT_STATE.md` — 全フェーズ・全ステップの設計判断の経緯(このファイルより遥かに詳細)。
