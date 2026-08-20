@@ -37,6 +37,14 @@ import { calculateEmployerSocialInsurance, calculateAnnualSettlement } from './t
 import { evaluateNewAchievements } from './achievements.js';
 import { checkVictoryCondition } from './gameOutcome.js';
 import { achievements, type AchievementDefinition } from '../data/achievements.js';
+import { calculateRealEstateMonthlyResult } from './realEstateLogic.js';
+import { calculateFranchiseRoyaltyIncome } from './franchiseLogic.js';
+import {
+  BOARD_CONFIDENCE_DEFAULT,
+  applyBoardConfidenceDelta,
+  calculateBoardConfidenceDelta,
+  shouldDismissBoard,
+} from './boardLogic.js';
 
 /** 決算(年1回)の間隔。turnUnitが'month'固定のため12ターン=1年とする。 */
 export const SETTLEMENT_INTERVAL_TURNS = 12;
@@ -272,20 +280,47 @@ export function advanceTurn(
     });
   }
 
+  const nextTurn = state.turn + 1;
+
+  // 不動産投資(保有不動産)の毎ターン処理: 賃貸収入(空室リスク控除後)・維持費・減価償却。
+  // evaluateRealEstateInvestmentは購入時点の一回限りの見積もりで、以後の毎ターン処理はここで行う。
+  let realEstateMonthlyDepreciation = 0;
+  let realEstateNetBookValue = 0;
   for (const investment of state.ownedRealEstate) {
+    const result = calculateRealEstateMonthlyResult(investment, nextTurn, rng);
+    realEstateMonthlyDepreciation += result.monthlyDepreciation;
+    realEstateNetBookValue += result.netBookValue;
     plItems.push({
       key: `realestate:${investment.id}`,
-      label: '不動産賃貸収入',
-      amount: investment.monthlyRentalIncome,
+      label: result.isVacant ? '不動産賃貸収入(空室)' : '不動産賃貸収入',
+      amount: result.effectiveRentalIncome,
+      kind: 'revenue',
+    });
+    plItems.push({
+      key: `realestateMaintenance:${investment.id}`,
+      label: '不動産維持費',
+      amount: result.maintenanceCost,
+      kind: 'fixedCost',
+    });
+  }
+
+  // フランチャイズ契約のロイヤリティ収入。フランチャイジー側の運営費はプレイヤーが負担しないため
+  // 対応するコスト項目は無い(収益のみのPL明細)。
+  for (const contract of state.franchiseContracts ?? []) {
+    const royalty = calculateFranchiseRoyaltyIncome(contract);
+    if (royalty <= 0) continue;
+    plItems.push({
+      key: `franchiseRoyalty:${contract.id}`,
+      label: 'FCロイヤリティ収入',
+      amount: royalty,
       kind: 'revenue',
     });
   }
 
-  const nextTurn = state.turn + 1;
-  const { totalMonthlyDepreciation, totalNetBookValue } = calculateStoresDepreciationAndNetBookValue(
-    state.stores,
-    nextTurn
-  );
+  const { totalMonthlyDepreciation: storesMonthlyDepreciation, totalNetBookValue: storesNetBookValue } =
+    calculateStoresDepreciationAndNetBookValue(state.stores, nextTurn);
+  const totalMonthlyDepreciation = storesMonthlyDepreciation + realEstateMonthlyDepreciation;
+  const totalNetBookValue = storesNetBookValue + realEstateNetBookValue;
   const loanServicing = serviceLoans(state.loans);
 
   // 税金は毎月のPLでは計上しない(月次のcorporateTax=0)。決算ターン(年1回)まで
@@ -395,6 +430,21 @@ export function advanceTurn(
       }
     : state.stock;
 
+  // 取締役会/株主総会機構(boardLogic.ts)。上場中(state.stock.isPublic)のみ信任スコアを更新する
+  // (未上場中は解任リスクの対象外)。isBankruptと同じ「一度trueになったら固定」方式。
+  const previousBoardConfidence = state.boardConfidence ?? BOARD_CONFIDENCE_DEFAULT;
+  let boardConfidence = previousBoardConfidence;
+  if (state.stock.isPublic) {
+    const delta = calculateBoardConfidenceDelta({
+      pretaxIncome: incomeStatement.pretaxIncome,
+      dividendPerSharePerTurn: state.stock.dividendPerSharePerTurn,
+      previousSharePrice: state.stock.sharePrice,
+      currentSharePrice: stock.sharePrice,
+    });
+    boardConfidence = applyBoardConfidenceDelta(previousBoardConfidence, delta);
+  }
+  const isBoardDismissed = (state.isBoardDismissed ?? false) || (state.stock.isPublic && shouldDismissBoard(boardConfidence));
+
   // NPC競合ブランドのターン処理(値付け/出店拡大の意思決定)。プレイヤーの平均品質・平均価格を
   // 全店舗のメニューから算出し、競合が「プレイヤーに対して」どう動くかの判断材料にする。
   const allMenuItems = state.stores.flatMap((store) => store.menu);
@@ -446,6 +496,8 @@ export function advanceTurn(
     fiscalPeriod: { accumulatedPretaxIncome: nextAccumulatedPretaxIncome },
     // 黒字倒産: 決算での一括納税等でcashが一度でもマイナスになったらtrueのまま固定する。
     isBankrupt: state.isBankrupt || cashFlowStatement.endingCash < 0,
+    boardConfidence,
+    isBoardDismissed,
   };
 
   // 実績(マイルストーン)判定: 新規解除分のみ報酬(cash)を加算し、達成済みIDに積み増す。

@@ -14,6 +14,7 @@ import type {
   EntityStatus,
 } from './corporate.js';
 import type { TaxRule, IncomeStatement, BalanceSheet, CashFlowStatement, SettlementResult } from './finance.js';
+import type { FranchiseContract } from './franchise.js';
 
 /**
  * 基盤④(Sim Core Engine)のAPI概形(~/CoreEngines/core/04-sim-core/README.md)に準拠。
@@ -90,6 +91,17 @@ export interface CoffeeEmpireState extends SimState {
    * 未設定(旧セーブ含む)のキーはgetCityBrandAwarenessのデフォルト値(baseline)として扱う。
    */
   brandAwarenessByCity?: Record<string, number>;
+  /**
+   * 取締役会/株主総会機構の追加フィールド。上場企業(stock.isPublic)にのみ意味を持つ
+   * (未上場中は評価対象外・値が変化しない)。未設定(旧セーブ含む)はboardLogic.ts側の
+   * デフォルト値(満額信任=100/未解任)として扱う。isBankruptと同じ「一度trueになったら固定」方式。
+   */
+  boardConfidence?: number; // 0-100
+  isBoardDismissed?: boolean;
+  /**
+   * フランチャイズ契約(logic/franchiseLogic.ts参照)。未設定(旧セーブ含む)は空配列として扱う。
+   */
+  franchiseContracts?: FranchiseContract[];
   history: {
     incomeStatements: IncomeStatement[];
     balanceSheets: BalanceSheet[];

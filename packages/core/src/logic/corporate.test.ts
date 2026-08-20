@@ -16,6 +16,7 @@ import {
   calculateDynamicStockPrice,
   applyExecutiveAutomation,
   calculateOwnershipComposition,
+  integrateAcquisition,
 } from './corporate.js';
 import type { StockListing } from '../types/corporate.js';
 
@@ -385,4 +386,41 @@ test('calculateOwnershipComposition: totalShares=0なら全て0%', () => {
   assert.equal(result.founderPercent, 0);
   assert.equal(result.institutionalPercent, 0);
   assert.equal(result.retailPublicPercent, 0);
+});
+
+function makeCompetitor(overrides: Partial<CompetitorBrand> = {}): CompetitorBrand {
+  return {
+    id: 'comp-1',
+    name: 'Rival Beans',
+    valuation: 10_000_000,
+    isAcquirable: true,
+    cash: 1_000_000,
+    storesByCity: { 'city-tokyo': 3, 'city-osaka': 2 },
+    avgPrice: 450,
+    ...overrides,
+  };
+}
+
+test('integrateAcquisition: 買収先の都市別出店数に応じて認知度が加点される', () => {
+  const result = integrateAcquisition(undefined, makeCompetitor());
+  assert.equal(result.brandAwarenessByCity['city-tokyo'], 20 + 3 * 5); // baseline20 + 3店舗×5
+  assert.equal(result.brandAwarenessByCity['city-osaka'], 20 + 2 * 5);
+});
+
+test('integrateAcquisition: 吸収した店舗数の合計・一時金が算出される', () => {
+  const result = integrateAcquisition(undefined, makeCompetitor());
+  assert.equal(result.absorbedStoreCount, 5);
+  assert.equal(result.cashBonus, 5 * 300_000);
+});
+
+test('integrateAcquisition: 出店数0の競合は認知度・一時金に影響しない', () => {
+  const result = integrateAcquisition({ 'city-tokyo': 40 }, makeCompetitor({ storesByCity: {} }));
+  assert.equal(result.brandAwarenessByCity['city-tokyo'], 40);
+  assert.equal(result.absorbedStoreCount, 0);
+  assert.equal(result.cashBonus, 0);
+});
+
+test('integrateAcquisition: 既存の認知度に加点する形で積み上がる(上書きしない)', () => {
+  const result = integrateAcquisition({ 'city-tokyo': 50 }, makeCompetitor({ storesByCity: { 'city-tokyo': 1 } }));
+  assert.equal(result.brandAwarenessByCity['city-tokyo'], 55);
 });

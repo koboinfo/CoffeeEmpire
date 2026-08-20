@@ -3,6 +3,7 @@ import type { Property, City } from '../types/store.js';
 import type { CoffeeEmpireState } from '../types/simState.js';
 import type { MarketingCampaignPreset } from '../data/marketingCampaignPresets.js';
 import { generateEmployeeCandidates } from './employeeCandidates.js';
+import { bumpCityBrandAwareness } from './branding.js';
 
 /**
  * 本社を1段階拡張する。sizeTierを+1、rentPerMonthを30%増加させる。
@@ -41,6 +42,43 @@ export function upgradeDepartment(headquarters: HeadquartersOffice, department: 
  */
 export function calculateAcquisitionPrice(competitor: CompetitorBrand, premiumRate = 0.2): number {
   return Math.round(competitor.valuation * (1 + premiumRate));
+}
+
+const ACQUISITION_AWARENESS_BONUS_PER_STORE = 5; // 買収先の店舗1店につき当該都市の認知度+5(clamp 0-100)
+const ACQUISITION_CASH_BONUS_PER_STORE = 300_000; // 吸収した既存顧客基盤を即時収益化する一時金(店舗1店あたり)
+
+export interface AcquisitionIntegrationResult {
+  brandAwarenessByCity: Record<string, number>;
+  absorbedStoreCount: number;
+  cashBonus: number;
+}
+
+/**
+ * M&A実行後の統合処理(店舗統合およびブランド価値の吸収)。買収した競合ブランドの
+ * storesByCity(都市ごとの出店数)を、新規のStore実体を作らずに「都市別ブランド認知度への
+ * 一括加点」+「吸収した店舗数に応じた一時金」として自社へ反映する(既知の簡略化: 買収先の
+ * 店舗をStoreとして個別運営することはしない。既存の"post-hoc乗数/見積もり"スタイルに合わせた設計)。
+ * 呼び出し側(mobile financeSlice.acquireCompetitor)がcashBonusをcashへ加算し、
+ * brandAwarenessByCityをstateへ反映する。
+ */
+export function integrateAcquisition(
+  brandAwarenessByCity: Record<string, number> | undefined,
+  competitor: CompetitorBrand
+): AcquisitionIntegrationResult {
+  let nextAwareness = brandAwarenessByCity ?? {};
+  let absorbedStoreCount = 0;
+
+  for (const [cityId, count] of Object.entries(competitor.storesByCity)) {
+    if (count <= 0) continue;
+    absorbedStoreCount += count;
+    nextAwareness = bumpCityBrandAwareness(nextAwareness, cityId, count * ACQUISITION_AWARENESS_BONUS_PER_STORE);
+  }
+
+  return {
+    brandAwarenessByCity: nextAwareness,
+    absorbedStoreCount,
+    cashBonus: absorbedStoreCount * ACQUISITION_CASH_BONUS_PER_STORE,
+  };
 }
 
 export interface RealEstateInvestmentEvaluation {

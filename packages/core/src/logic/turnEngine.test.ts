@@ -667,3 +667,87 @@ test('advanceTurn: cityId付きキャンペーンが稼働中の都市は認知�
   const revenueWithout = plItemsWithout.find((item) => item.key === 'revenue:store-1')?.amount ?? 0;
   assert.ok(revenueWith > revenueWithout);
 });
+
+test('advanceTurn: 不動産の維持費がPLに計上され、簿価がBSのpropertyAndEquipmentNetに反映される', () => {
+  const investment: RealEstateInvestment = {
+    id: 're-1',
+    propertyId: 'prop-invest',
+    purchasePrice: 24_000_000,
+    monthlyRentalIncome: 175_000,
+    purchasedAtTurn: 0,
+  };
+  const state = makeState({ stores: [], ownedRealEstate: [investment] });
+  const { balanceSheet, plItems } = advanceTurn(state, context, [], () => 0.99); // 0.99 -> 空室にならない
+  const maintenanceItem = plItems.find((item) => item.key === `realestateMaintenance:${investment.id}`);
+  assert.ok(maintenanceItem);
+  assert.ok(maintenanceItem!.amount > 0);
+  assert.ok(balanceSheet.propertyAndEquipmentNet > 0);
+});
+
+test('advanceTurn: 不動産投資は空室確率(rng<0.1)だと実効賃貸収入が満室時より下がる', () => {
+  const investment: RealEstateInvestment = {
+    id: 're-1',
+    propertyId: 'prop-invest',
+    purchasePrice: 24_000_000,
+    monthlyRentalIncome: 175_000,
+    purchasedAtTurn: 0,
+  };
+  const state = makeState({ stores: [], ownedRealEstate: [investment] });
+  const vacant = advanceTurn(state, context, [], () => 0);
+  const full = advanceTurn(state, context, [], () => 0.99);
+  assert.ok(vacant.incomeStatement.revenue < full.incomeStatement.revenue);
+});
+
+test('advanceTurn: フランチャイズ契約のロイヤリティ収入がPL/incomeStatement.revenueに反映される', () => {
+  const state = makeState({
+    stores: [],
+    franchiseContracts: [
+      { id: 'fc-1', cityId: 'city-1', royaltyRate: 0.06, monthlyGrossRevenueEstimate: 1_000_000, openedAtTurn: 0 },
+    ],
+  });
+  const { incomeStatement, plItems } = advanceTurn(state, context, [], () => 1);
+  const royaltyItem = plItems.find((item) => item.key === 'franchiseRoyalty:fc-1');
+  assert.ok(royaltyItem);
+  assert.equal(royaltyItem!.amount, 60_000);
+  assert.equal(incomeStatement.revenue, 60_000);
+});
+
+test('advanceTurn: 未上場中はboardConfidenceが変化せずisBoardDismissedもfalseのまま', () => {
+  const state = makeState({ stock: { isPublic: false, sharePrice: 0, totalShares: 0, publicFloatShares: 0, dividendPerSharePerTurn: 0 } });
+  const { nextState } = advanceTurn(state, context, [], () => 1);
+  assert.equal(nextState.boardConfidence, 100);
+  assert.equal(nextState.isBoardDismissed, false);
+});
+
+test('advanceTurn: 上場中に赤字・株価下落が続くとboardConfidenceが下がり、閾値以下でisBoardDismissedがtrueになる', () => {
+  let state = makeState({
+    cash: 1000,
+    stores: [
+      makeStore({
+        menu: [makeMenuItem({ currentPrice: 10, costOfGoods: 5000, qualityScore: 0 })],
+      }),
+    ],
+    stock: { isPublic: true, sharePrice: 500, totalShares: 100_000, publicFloatShares: 30_000, dividendPerSharePerTurn: 0 },
+    boardConfidence: 100,
+    isBoardDismissed: false,
+  });
+
+  let dismissed = false;
+  for (let i = 0; i < 40 && !dismissed; i++) {
+    const { nextState } = advanceTurn(state, context, [], () => 1);
+    state = nextState;
+    dismissed = state.isBoardDismissed ?? false;
+  }
+  assert.equal(dismissed, true);
+  assert.ok((state.boardConfidence ?? 100) <= 15);
+});
+
+test('advanceTurn: isBoardDismissedは一度trueになったら固定される(以後の黒字化でも戻らない)', () => {
+  const state = makeState({
+    stock: { isPublic: true, sharePrice: 500, totalShares: 100_000, publicFloatShares: 30_000, dividendPerSharePerTurn: 0 },
+    boardConfidence: 10,
+    isBoardDismissed: true,
+  });
+  const { nextState } = advanceTurn(state, context, [], () => 1);
+  assert.equal(nextState.isBoardDismissed, true);
+});

@@ -6,6 +6,7 @@ export * from './types/finance.js';
 export * from './types/simState.js';
 export * from './types/research.js';
 export * from './types/storeEvents.js';
+export * from './types/franchise.js';
 
 export * from './logic/financials.js';
 export * from './logic/events.js';
@@ -26,6 +27,9 @@ export * from './logic/achievements.js';
 export * from './logic/gameOutcome.js';
 export * from './logic/creditRating.js';
 export * from './logic/branding.js';
+export * from './logic/realEstateLogic.js';
+export * from './logic/boardLogic.js';
+export * from './logic/franchiseLogic.js';
 
 export * from './data/cities.js';
 export * from './data/farms.js';
