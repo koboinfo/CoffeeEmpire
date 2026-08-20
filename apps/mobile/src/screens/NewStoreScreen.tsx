@@ -3,7 +3,7 @@ import { View, Text, Pressable, FlatList } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { cities, generatePropertiesForCity, type City, type Property } from '@coffee-empire/core';
+import { cities, evaluateFranchiseOpportunity, generatePropertiesForCity, type City, type Property } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Card } from '../components/Card';
@@ -28,6 +28,7 @@ export function NewStoreScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<Route>();
   const openStore = useGameStore((store) => store.openStore);
+  const openFranchise = useGameStore((store) => store.openFranchise);
   const stores = useGameStore((store) => store.state.stores);
   const properties = useGameStore((store) => store.properties);
   const competitorBrands = useGameStore((store) => store.state.competitorBrands);
@@ -38,6 +39,15 @@ export function NewStoreScreen() {
   const propertyOptions = useMemo(
     () => (selectedCity ? generatePropertiesForCity(selectedCity) : []),
     [selectedCity]
+  );
+
+  // フランチャイズ契約の見積もり(客足×都市所得水準からの粗い見積もり)。都市選択時のみ計算する。
+  const franchiseEvaluationByPropertyId = useMemo(
+    () =>
+      selectedCity
+        ? new Map(propertyOptions.map((property) => [property.id, evaluateFranchiseOpportunity(property, selectedCity)]))
+        : new Map(),
+    [propertyOptions, selectedCity]
   );
 
   const propertyById = useMemo(() => new Map(properties.map((property) => [property.id, property])), [properties]);
@@ -160,6 +170,20 @@ export function NewStoreScreen() {
                 navigation.goBack();
               }}
             />
+            {(() => {
+              const franchiseEvaluation = franchiseEvaluationByPropertyId.get(property.id);
+              if (!franchiseEvaluation) return null;
+              return (
+                <AppButton
+                  label={`FC契約(月次ロイヤリティ見込 ¥${Math.round(
+                    franchiseEvaluation.monthlyGrossRevenueEstimate * franchiseEvaluation.royaltyRate
+                  ).toLocaleString('ja-JP')})`}
+                  icon="people"
+                  variant="secondary"
+                  onPress={() => openFranchise(selectedCity, franchiseEvaluation)}
+                />
+              );
+            })()}
           </Card>
         )}
       />

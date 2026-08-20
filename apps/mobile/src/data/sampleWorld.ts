@@ -75,6 +75,9 @@ export function createInitialState(): CoffeeEmpireState {
     executiveAutomation: { autoPricing: false, autoHiring: false, autoMarketing: false },
     loans: [],
     researchUnlockedIds: [],
+    boardConfidence: 100,
+    isBoardDismissed: false,
+    franchiseContracts: [],
     history: {
       incomeStatements: [],
       balanceSheets: [],

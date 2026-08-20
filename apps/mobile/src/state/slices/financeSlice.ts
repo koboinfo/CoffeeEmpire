@@ -2,8 +2,11 @@ import type { StateCreator } from 'zustand';
 import {
   calculateAcquisitionPrice,
   createLoan,
+  integrateAcquisition,
   type Acquisition,
+  type City,
   type CompetitorBrand,
+  type FranchiseContract,
   type Property,
   type RealEstateInvestment,
 } from '@coffee-empire/core';
@@ -14,6 +17,11 @@ interface RealEstateEvaluation {
   monthlyRentalIncome: number;
 }
 
+interface FranchiseEvaluation {
+  royaltyRate: number;
+  monthlyGrossRevenueEstimate: number;
+}
+
 // IPO時の浮動株のうち機関投資家が引き受ける割合の目安(実際のIPOでの機関投資家配分の一般的な傾向を簡易反映)。
 const DEFAULT_INSTITUTIONAL_RATIO = 0.6;
 
@@ -22,10 +30,13 @@ export interface FinanceSlice {
   setDividendPerShare: (value: number) => void;
   acquireCompetitor: (competitorId: string) => void;
   investInRealEstate: (property: Property, evaluation: RealEstateEvaluation) => void;
+  sellRealEstate: (investmentId: string) => void;
   takeLoan: (principal: number, annualInterestRate: number, termTurns: number) => void;
   buyBackShares: (shareCount: number) => void;
   /** 上場後の追加株式発行(公募増資)。既存株主の持株比率が希薄化する代わりに資金調達できる。Phase B追加。 */
   issueAdditionalShares: (shareCount: number, sharePrice: number, institutionalRatio?: number) => void;
+  /** フランチャイズ契約を新規に結ぶ(自社運営店舗のStoreとは別エンティティ)。Phase D追加。 */
+  openFranchise: (city: City, evaluation: FranchiseEvaluation) => void;
 }
 
 export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> = (set, get) => ({
@@ -57,6 +68,8 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
     set({ state: { ...state, stock: { ...state.stock, dividendPerSharePerTurn: Math.max(0, value) } } });
   },
 
+  // M&A実行: 買収額をcashから引き競合を除外するだけでなく、integrateAcquisition経由で
+  // 買収先の店舗網を都市別ブランド認知度への加点+一時金として吸収する(店舗統合およびブランド価値の吸収)。
   acquireCompetitor: (competitorId) => {
     const { state } = get();
     const competitor = state.competitorBrands.find((c: CompetitorBrand) => c.id === competitorId);
@@ -65,19 +78,24 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
     const price = calculateAcquisitionPrice(competitor);
     if (state.cash < price) return;
 
+    const integration = integrateAcquisition(state.brandAwarenessByCity, competitor);
+
     const acquisition: Acquisition = {
       id: `acq-${competitor.id}-${state.turn}`,
       targetBrandId: competitor.id,
       price,
       acquiredAtTurn: state.turn,
+      absorbedStoreCount: integration.absorbedStoreCount,
+      integrationCashBonus: integration.cashBonus,
     };
 
     set({
       state: {
         ...state,
-        cash: state.cash - price,
+        cash: state.cash - price + integration.cashBonus,
         competitorBrands: state.competitorBrands.filter((c: CompetitorBrand) => c.id !== competitorId),
         acquisitions: [...state.acquisitions, acquisition],
+        brandAwarenessByCity: integration.brandAwarenessByCity,
       },
     });
   },
@@ -99,6 +117,23 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
         ...state,
         cash: state.cash - evaluation.purchasePrice,
         ownedRealEstate: [...state.ownedRealEstate, investment],
+      },
+    });
+  },
+
+  // 不動産投資の売却: 売却損益(賃料収入の蓄積等)は損益計算書に反映しない既知の簡略化。
+  // 取引コスト分として購入額の10%を差し引いた額を即座にcashへ加算する。
+  sellRealEstate: (investmentId) => {
+    const { state } = get();
+    const investment = state.ownedRealEstate.find((entry) => entry.id === investmentId);
+    if (!investment) return;
+
+    const refund = Math.round(investment.purchasePrice * 0.9);
+    set({
+      state: {
+        ...state,
+        cash: state.cash + refund,
+        ownedRealEstate: state.ownedRealEstate.filter((entry) => entry.id !== investmentId),
       },
     });
   },
@@ -137,6 +172,26 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
         },
       },
       pendingCapitalInjection: pendingCapitalInjection + sharePrice * shareCount,
+    });
+  },
+
+  // フランチャイズ契約を新規に結ぶ。自社出店(openStore)とは別に、都市単位のロイヤリティ収益権のみを
+  // 得る軽量なエンティティを追加する(Employee/Equipment等は持たない。franchiseLogic.ts参照)。
+  openFranchise: (city, evaluation) => {
+    const { state } = get();
+    const contract: FranchiseContract = {
+      id: `fc-${city.id}-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+      cityId: city.id,
+      royaltyRate: evaluation.royaltyRate,
+      monthlyGrossRevenueEstimate: evaluation.monthlyGrossRevenueEstimate,
+      openedAtTurn: state.turn,
+    };
+
+    set({
+      state: {
+        ...state,
+        franchiseContracts: [...(state.franchiseContracts ?? []), contract],
+      },
     });
   },
 

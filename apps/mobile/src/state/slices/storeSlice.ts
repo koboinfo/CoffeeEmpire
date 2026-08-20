@@ -12,6 +12,7 @@ export function trainingCost(skillLevel: number): number {
 
 export interface StoreSlice {
   openStore: (property: Property, storeName: string) => void;
+  closeStore: (storeId: string) => void;
   setMenuItemPrice: (storeId: string, menuItemId: string, price: number) => void;
   purchaseEquipment: (storeId: string, template: EquipmentTemplate) => void;
   sellEquipment: (storeId: string, equipmentId: string) => void;
@@ -51,6 +52,29 @@ export const createStoreSlice: StateCreator<GameStore, [], [], StoreSlice> = (se
     set({
       properties: [...properties.filter((p) => p.id !== property.id), ownedProperty],
       state: { ...state, stores: [...state.stores, newStore] },
+    });
+  },
+
+  closeStore: (storeId) => {
+    const { state, properties } = get();
+    const store = state.stores.find((s) => s.id === storeId);
+    if (!store) return;
+
+    // 機材の下取り額はsellEquipmentと同じく購入額の半額(減価償却状況は考慮しない既知の簡略化)。
+    const equipmentRefund = Math.round(
+      store.equipment.reduce((sum, eq) => sum + eq.purchaseCost, 0) * 0.5
+    );
+
+    set({
+      properties: properties.map((property) =>
+        property.id === store.propertyId ? { ...property, ownership: 'unowned' } : property
+      ),
+      state: {
+        ...state,
+        stores: state.stores.filter((s) => s.id !== storeId),
+        employees: state.employees.filter((employee) => !store.employeeIds.includes(employee.id)),
+        cash: state.cash + equipmentRefund,
+      },
     });
   },
 

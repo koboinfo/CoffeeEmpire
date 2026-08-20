@@ -9,6 +9,7 @@ export * from './types/storeEvents.js';
 export * from './types/franchise.js';
 
 export * from './logic/financials.js';
+export * from './logic/financialDiagnostics.js';
 export * from './logic/events.js';
 export * from './logic/competitorAI.js';
 export * from './logic/turnEngine.js';

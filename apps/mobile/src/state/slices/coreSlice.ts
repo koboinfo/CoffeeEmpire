@@ -89,7 +89,8 @@ export const createCoreSlice: StateCreator<GameStore, [], [], CoreSlice> = (set,
   advance: async () => {
     try {
       const { state, properties, pendingCapitalInjection } = get();
-      if (state.isBankrupt) return;
+      // isBankruptと同じ「ゲームオーバー時はターン進行を止める」二重防御パターン(BoardDismissalScreen側)。
+      if (state.isBankrupt || state.isBoardDismissed) return;
       const turnContext = buildTurnContext(properties);
       const {
         nextState,

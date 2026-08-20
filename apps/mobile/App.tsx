@@ -9,6 +9,7 @@ import { HudBar } from './src/components/HudBar';
 import { EventAlertModal } from './src/components/EventAlertModal';
 import { SettlementModal } from './src/components/SettlementModal';
 import { BankruptcyScreen } from './src/components/BankruptcyScreen';
+import { BoardDismissalScreen } from './src/components/BoardDismissalScreen';
 import { VictoryScreen } from './src/components/VictoryScreen';
 import { AchievementToast } from './src/components/AchievementToast';
 import { OnboardingModal } from './src/components/OnboardingModal';
@@ -34,6 +35,7 @@ export default function App() {
           <SettlementModal />
           <AchievementToast />
           <BankruptcyScreen />
+          <BoardDismissalScreen />
           <VictoryScreen />
           <OnboardingModal />
         </View>

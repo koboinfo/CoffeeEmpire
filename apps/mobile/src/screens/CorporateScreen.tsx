@@ -341,6 +341,21 @@ export function CorporateScreen() {
             </CardBox>
           ) : null}
 
+          {state.stock.isPublic ? (
+            <CardBox>
+              <SectionLabel icon="people-circle" label="取締役会の信任(株主総会)" />
+              <Gauge
+                label={`信任スコア ${Math.round(state.boardConfidence ?? 100)} / 100`}
+                value={state.boardConfidence ?? 100}
+                color={(state.boardConfidence ?? 100) <= 30 ? colors.negative : colors.positive}
+              />
+              <Text className="text-xs text-text-muted">
+                継続的な赤字・無配・株価下落が続くと信任スコアが下がる。{colors.negative && ''}
+                {(state.boardConfidence ?? 100) <= 30 ? '⚠ 解任リスクが高まっています。' : '黒字・配当・株価上昇を維持しましょう。'}
+              </Text>
+            </CardBox>
+          ) : null}
+
           <CardBox>
             <SectionLabel icon="receipt" label="決算履歴" />
             {state.history.settlements.length === 0 ? (
@@ -844,6 +859,66 @@ export function CorporateScreen() {
                 </CatalogRow>
               );
             })}
+          </CardBox>
+
+          {state.acquisitions.length > 0 ? (
+            <CardBox>
+              <SectionLabel icon="receipt" label="買収履歴(店舗統合・ブランド価値の吸収)" />
+              {state.acquisitions.map((acquisition, index) => (
+                <View key={acquisition.id} className={`gap-[2px] py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-sm text-text-primary">T{acquisition.acquiredAtTurn} 買収</Text>
+                    <Text className="text-sm font-semibold text-text-primary">-{formatCurrency(acquisition.price)}</Text>
+                  </View>
+                  {acquisition.absorbedStoreCount ? (
+                    <Text className="text-xs text-text-muted">
+                      吸収店舗数 {acquisition.absorbedStoreCount}店 ・ 統合一時金 +{formatCurrency(acquisition.integrationCashBonus ?? 0)}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </CardBox>
+          ) : null}
+
+          <CardBox>
+            <SectionLabel icon="business" label="不動産投資ポートフォリオ" />
+            {state.ownedRealEstate.length === 0 ? (
+              <Text className="text-xs text-text-muted">保有中の投資用不動産はありません</Text>
+            ) : (
+              <>
+                <Text className="text-xs text-text-secondary">
+                  保有件数 {state.ownedRealEstate.length}件 ・ 月次賃料収入見込 合計
+                  {formatCurrency(state.ownedRealEstate.reduce((sum, re) => sum + re.monthlyRentalIncome, 0))}
+                  (空室リスクにより実際の収入は変動する)
+                </Text>
+              </>
+            )}
+            <AppButton
+              label="不動産投資を見る"
+              icon="home"
+              variant="secondary"
+              onPress={() => navigation.navigate('RealEstate')}
+            />
+          </CardBox>
+
+          <CardBox>
+            <SectionLabel icon="storefront" label="フランチャイズ収益" />
+            {(state.franchiseContracts?.length ?? 0) === 0 ? (
+              <Text className="text-xs text-text-muted">
+                締結中のフランチャイズ契約はありません(出店マップの「FC契約」ボタンから結べます)
+              </Text>
+            ) : (
+              (state.franchiseContracts ?? []).map((contract, index) => (
+                <CatalogRow key={contract.id} index={index}>
+                  <Text className="text-sm text-text-primary">
+                    {cities.find((city) => city.id === contract.cityId)?.name ?? contract.cityId}
+                  </Text>
+                  <Text className="text-sm font-semibold text-text-primary">
+                    {formatCurrency(contract.monthlyGrossRevenueEstimate * contract.royaltyRate)}/月(ロイヤリティ{Math.round(contract.royaltyRate * 100)}%)
+                  </Text>
+                </CatalogRow>
+              ))
+            )}
           </CardBox>
         </>
       ) : null}

@@ -94,6 +94,13 @@ export interface Acquisition {
   targetBrandId: string;
   price: number;
   acquiredAtTurn: number;
+  /**
+   * Phase D(M&A統合)追加のadditiveフィールド。integrateAcquisition(logic/corporate.ts)の結果を
+   * 記録用に保持する(UI表示用。再計算のロジック自体はintegrateAcquisition側にある)。
+   * 未設定(旧セーブ含む)は統合処理が無かった買収として扱う。
+   */
+  absorbedStoreCount?: number;
+  integrationCashBonus?: number;
 }
 
 export interface RealEstateInvestment {

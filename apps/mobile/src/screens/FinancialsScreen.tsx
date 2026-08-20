@@ -3,10 +3,11 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { IncomeStatement } from '@coffee-empire/core';
+import { categorizeExpenses, diagnoseFinancials, type FinancialInsight } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { LineChart } from '../components/LineChart';
 import { AppButton } from '../components/AppButton';
-import { ChartIcon, TrendingIcon } from '../icons';
+import { ChartIcon, TrendingIcon, WarningIcon, CheckCircleIcon } from '../icons';
 import { colors } from '../theme/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 
@@ -74,13 +75,72 @@ function PLRow({ label, value, emphasis }: { label: string; value: number; empha
   );
 }
 
+const SEVERITY_COLOR: Record<FinancialInsight['severity'], string> = {
+  critical: colors.negative,
+  warning: colors.gold,
+  info: colors.positive,
+};
+
+function CFOAdvisorSection({ onNavigateToAction }: { onNavigateToAction: () => void }) {
+  const state = useGameStore((s) => s.state);
+  const plItems = useGameStore((s) => s.latestPLItems);
+  const eventCashEffect = useGameStore((s) => s.latestEventCashEffect);
+  const latestStatement = state.history.incomeStatements[state.history.incomeStatements.length - 1];
+
+  const diagnosis = useMemo(() => {
+    if (!latestStatement || plItems.length === 0) return null;
+    const expenses = categorizeExpenses(plItems, eventCashEffect < 0 ? -eventCashEffect : 0);
+    return diagnoseFinancials(
+      { stores: state.stores },
+      { turn: latestStatement.turn, revenue: latestStatement.revenue, expenses, netIncome: latestStatement.netIncome }
+    );
+  }, [latestStatement, plItems, eventCashEffect, state.stores]);
+
+  if (!diagnosis) return null;
+
+  const { primaryIssue } = diagnosis;
+  const color = SEVERITY_COLOR[primaryIssue.severity];
+  const Icon = primaryIssue.severity === 'info' ? CheckCircleIcon : WarningIcon;
+
+  return (
+    <View className="gap-sm rounded-md border border-border bg-surface p-md" style={{ borderColor: color }}>
+      <View className="flex-row items-center gap-xs">
+        <Icon size={16} color={color} />
+        <Text className="text-xs font-bold text-text-secondary">CFOの財務診断</Text>
+      </View>
+      <Text className="text-sm font-extrabold text-text-primary">{primaryIssue.title}</Text>
+      <Text className="text-xs text-text-secondary">{primaryIssue.message}</Text>
+      {primaryIssue.actionTarget ? (
+        <AppButton label={primaryIssue.actionLabel} icon="arrow-forward" variant="secondary" onPress={onNavigateToAction} />
+      ) : null}
+    </View>
+  );
+}
+
 export function FinancialsScreen() {
   const navigation = useNavigation<Navigation>();
   const { state } = useGameStore();
+  const latestPLItems = useGameStore((s) => s.latestPLItems);
   const statements = state.history.incomeStatements;
   const latestBalanceSheet = state.history.balanceSheets[state.history.balanceSheets.length - 1];
   const latestCashFlowStatement = state.history.cashFlowStatements[state.history.cashFlowStatements.length - 1];
   const [periodMode, setPeriodMode] = useState<'monthly' | 'yearly'>('monthly');
+
+  // 不動産賃貸収入・維持費・FCロイヤリティ収入の内訳(直近ターンのPL明細から抽出)。
+  // categorizeExpenses(FinancialBreakdownScreen)は収益項目をスキップするため、ここでは直接plItemsを見る。
+  const realEstateIncomeItems = useMemo(
+    () => latestPLItems.filter((item) => item.key.startsWith('realestate:')),
+    [latestPLItems]
+  );
+  const realEstateMaintenanceItems = useMemo(
+    () => latestPLItems.filter((item) => item.key.startsWith('realestateMaintenance:')),
+    [latestPLItems]
+  );
+  const franchiseIncomeItems = useMemo(
+    () => latestPLItems.filter((item) => item.key.startsWith('franchiseRoyalty:')),
+    [latestPLItems]
+  );
+  const recentAcquisitions = useMemo(() => [...state.acquisitions].slice(-5).reverse(), [state.acquisitions]);
 
   const revenueSeries = useMemo(() => statements.map((s) => s.revenue), [statements]);
   const netIncomeSeries = useMemo(() => statements.map((s) => s.netIncome), [statements]);
@@ -99,6 +159,8 @@ export function FinancialsScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-md p-md pb-xl">
       <Text className="text-xl font-bold text-text-primary">財務諸表</Text>
+
+      <CFOAdvisorSection onNavigateToAction={() => navigation.navigate('Tabs', { screen: 'StoreList' })} />
 
       <AppButton
         label="詳細コスト内訳を見る(家賃・人件費・原価など)"
@@ -140,6 +202,33 @@ export function FinancialsScreen() {
           <PLRow label="資産合計" value={latestBalanceSheet.totalAssets} emphasis />
           <PLRow label="負債合計" value={latestBalanceSheet.totalLiabilities} />
           <PLRow label="資本合計" value={latestBalanceSheet.totalEquity} emphasis />
+        </View>
+      ) : null}
+
+      {realEstateIncomeItems.length > 0 || franchiseIncomeItems.length > 0 || recentAcquisitions.length > 0 ? (
+        <View className="gap-[2px] rounded-md border border-border bg-surface p-md">
+          <Text className="mb-xs text-xs font-medium text-text-secondary">その他事業の収益内訳(直近ターン)</Text>
+          {realEstateIncomeItems.map((item) => (
+            <PLRow key={item.key} label={item.label} value={item.amount} />
+          ))}
+          {realEstateMaintenanceItems.map((item) => (
+            <PLRow key={item.key} label={item.label} value={-item.amount} />
+          ))}
+          {franchiseIncomeItems.map((item) => (
+            <PLRow key={item.key} label={item.label} value={item.amount} />
+          ))}
+          {recentAcquisitions.length > 0 ? (
+            <>
+              <Text className="mb-[2px] mt-sm text-xs font-bold text-text-secondary">M&A(直近5件)</Text>
+              {recentAcquisitions.map((acquisition) => (
+                <PLRow
+                  key={acquisition.id}
+                  label={`T${acquisition.acquiredAtTurn} 買収${acquisition.absorbedStoreCount ? `(吸収${acquisition.absorbedStoreCount}店)` : ''}`}
+                  value={-acquisition.price + (acquisition.integrationCashBonus ?? 0)}
+                />
+              ))}
+            </>
+          ) : null}
         </View>
       ) : null}
 
