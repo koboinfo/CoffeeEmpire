@@ -8,6 +8,7 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import { FinancialsScreen } from '../screens/FinancialsScreen';
 import { FinancialBreakdownScreen } from '../screens/FinancialBreakdownScreen';
 import { MapScreen } from '../screens/MapScreen';
+import { CityMapScreen } from '../screens/CityMapScreen';
 import { StoreListScreen } from '../screens/StoreListScreen';
 import { NewStoreScreen } from '../screens/NewStoreScreen';
 import { StoreDetailScreen } from '../screens/StoreDetailScreen';
@@ -30,6 +31,7 @@ export type RootStackParamList = {
   Financials: undefined;
   FinancialBreakdown: undefined;
   NewStore: { cityId?: string } | undefined;
+  CityMap: { cityId: string };
   StoreDetail: { storeId: string };
   RealEstate: undefined;
   News: undefined;
@@ -104,6 +106,7 @@ export function RootNavigator() {
         options={{ title: '詳細コスト内訳' }}
       />
       <Stack.Screen name="NewStore" component={NewStoreScreen} options={{ title: '新規出店' }} />
+      <Stack.Screen name="CityMap" component={CityMapScreen} options={{ title: '都市マップ' }} />
       <Stack.Screen name="StoreDetail" component={StoreDetailScreen} options={{ title: '店舗詳細' }} />
       <Stack.Screen name="RealEstate" component={RealEstateScreen} options={{ title: '不動産投資' }} />
       <Stack.Screen name="News" component={NewsScreen} options={{ title: 'ニュース' }} />

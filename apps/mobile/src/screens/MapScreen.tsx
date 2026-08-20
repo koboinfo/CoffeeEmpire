@@ -74,7 +74,7 @@ export function MapScreen() {
                 shadowRadius: isTerritory || isContested ? 10 : 8,
                 elevation: 3,
               }}
-              onPress={() => navigation.navigate('NewStore', { cityId: city.id })}
+              onPress={() => navigation.navigate('CityMap', { cityId: city.id })}
             >
               <GridBackdrop image={cityImage} className="h-16 justify-end p-sm" glowColor={isTerritory ? colors.mapOwned : colors.roast}>
                 <View className="self-end">
