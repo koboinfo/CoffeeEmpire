@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, FlatList } from 'react-native';
-import { cities, generatePropertiesForCity, evaluateRealEstateInvestment, type City } from '@coffee-empire/core';
+import {
+  cities,
+  generatePropertiesForCity,
+  evaluateRealEstateInvestment,
+  RENT_PER_TSUBO_JPY,
+  type City,
+} from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { Card } from '../components/Card';
 import { AppButton } from '../components/AppButton';
@@ -17,7 +23,7 @@ export function RealEstateScreen() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
   const propertyOptions = useMemo(
-    () => (selectedCity ? generatePropertiesForCity(selectedCity) : []),
+    () => (selectedCity ? generatePropertiesForCity(selectedCity, Math.random, RENT_PER_TSUBO_JPY) : []),
     [selectedCity]
   );
 

@@ -13,7 +13,16 @@ if (!tokyo) {
 }
 
 export const sampleProperties: Property[] = [
-  { id: 'prop-tokyo-1', cityId: tokyo.id, size: 'medium', footTraffic: 1200, rentPerMonth: 720_000, ownership: 'leased' },
+  {
+    id: 'prop-tokyo-1',
+    cityId: tokyo.id,
+    size: 'medium',
+    sizeTsubo: 20,
+    seats: 30,
+    footTraffic: 1400,
+    rentPerMonth: 360_000, // 20坪 × 東京の実勢坪単価(data/cityRent.tsのRENT_PER_TSUBO_JPY、¥18,000/坪)
+    ownership: 'leased',
+  },
 ];
 
 const flagshipMenu: MenuItem[] = [

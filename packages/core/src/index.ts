@@ -33,6 +33,7 @@ export * from './logic/boardLogic.js';
 export * from './logic/franchiseLogic.js';
 
 export * from './data/cities.js';
+export * from './data/cityRent.js';
 export * from './data/farms.js';
 export * from './data/events.js';
 export * from './data/eventEffectRanges.js';

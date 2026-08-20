@@ -3,7 +3,15 @@ import { View, Text, Pressable, FlatList } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { cities, evaluateFranchiseOpportunity, generatePropertiesForCity, type City, type Property } from '@coffee-empire/core';
+import {
+  cities,
+  evaluateFranchiseOpportunity,
+  generatePropertiesForCity,
+  resolvePropertyCapacity,
+  RENT_PER_TSUBO_JPY,
+  type City,
+  type Property,
+} from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Card } from '../components/Card';
@@ -37,7 +45,7 @@ export function NewStoreScreen() {
   const [selectedCity, setSelectedCity] = useState<City | null>(initialCity);
 
   const propertyOptions = useMemo(
-    () => (selectedCity ? generatePropertiesForCity(selectedCity) : []),
+    () => (selectedCity ? generatePropertiesForCity(selectedCity, Math.random, RENT_PER_TSUBO_JPY) : []),
     [selectedCity]
   );
 
@@ -154,6 +162,12 @@ export function NewStoreScreen() {
               </Text>
             </View>
             <Text className="text-[17px] font-bold text-text-primary">{SIZE_LABEL[property.size]}</Text>
+            <View className="flex-row items-center gap-xs">
+              <Ionicons name="resize-outline" size={12} color={colors.textSecondary} />
+              <Text className="text-xs font-semibold text-text-secondary">
+                {resolvePropertyCapacity(property).sizeTsubo}坪・席数{resolvePropertyCapacity(property).seats}
+              </Text>
+            </View>
             <View className="flex-row items-center gap-xs">
               <Ionicons name="walk" size={12} color={colors.textSecondary} />
               <Text className="text-xs font-semibold text-text-secondary">{property.footTraffic.toLocaleString('ja-JP')}人/月</Text>

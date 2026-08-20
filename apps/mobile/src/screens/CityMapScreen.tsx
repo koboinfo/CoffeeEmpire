@@ -7,6 +7,8 @@ import {
   cities,
   evaluateRealEstateInvestment,
   generatePropertiesForCity,
+  resolvePropertyCapacity,
+  RENT_PER_TSUBO_JPY,
   type Property,
 } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
@@ -66,7 +68,10 @@ export function CityMapScreen() {
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
-  const propertyOptions = useMemo(() => (city ? generatePropertiesForCity(city) : []), [city]);
+  const propertyOptions = useMemo(
+    () => (city ? generatePropertiesForCity(city, Math.random, RENT_PER_TSUBO_JPY) : []),
+    [city]
+  );
 
   const storeByPropertyId = useMemo(() => new Map(stores.map((store) => [store.propertyId, store])), [stores]);
   const realEstateByPropertyId = useMemo(
@@ -253,6 +258,12 @@ export function CityMapScreen() {
               </>
             ) : (
               <>
+                <View className="flex-row items-center gap-xs">
+                  <Ionicons name="resize-outline" size={12} color={colors.textSecondary} />
+                  <Text className="text-xs font-semibold text-text-secondary">
+                    {resolvePropertyCapacity(selectedProperty).sizeTsubo}坪・席数{resolvePropertyCapacity(selectedProperty).seats}
+                  </Text>
+                </View>
                 <View className="flex-row items-center gap-xs">
                   <Ionicons name="walk" size={12} color={colors.textSecondary} />
                   <Text className="text-xs font-semibold text-text-secondary">
