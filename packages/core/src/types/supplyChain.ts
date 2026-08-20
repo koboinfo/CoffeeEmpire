@@ -1,10 +1,23 @@
 export type OriginCountry = 'brazil' | 'ethiopia' | 'colombia' | 'vietnam' | 'guatemala' | string;
 
+/**
+ * 風味プロファイル(0-100)。qGradeとは独立した「味の方向性」を表す表示用メタデータ。
+ * 現時点ではcalculateMenuItemPreferenceScore等のスコアリングには接続していないが、
+ * FlavorProfileInputsとして将来preferenceScoreに渡せるよう、フィールド名を
+ * MenuItemPreferenceInputsと同じ粒度(0-100スケール)で揃えてある。
+ */
+export interface FlavorProfile {
+  aroma: number; // 香り
+  acidity: number; // 酸味
+  bitterness: number; // 苦味
+}
+
 export interface Farm {
   id: string;
   country: OriginCountry;
   qGrade: number; // 0-100、SCA品質基準
-  pricePerKg: number;
+  flavor: FlavorProfile;
+  pricePerKg: number; // 基準価格。実効価格はcalculateEffectiveBeanPrice(farm, turn)で算出する
   availableKgPerMonth: number;
   reliability: number; // 0-100、供給安定性
 }

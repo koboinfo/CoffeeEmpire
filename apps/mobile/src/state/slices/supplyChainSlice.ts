@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import {
+  calculateEffectiveBeanPrice,
   calculateFarmAcquisitionPrice,
   calculateGreenBeanPurchase,
   calculateMenuItemPreferenceScore,
@@ -53,7 +54,7 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
     const farm = farms.find((f) => f.id === farmId);
     if (!farm) return;
 
-    const { deliveredKg, cost } = calculateGreenBeanPurchase(farm, kg);
+    const { deliveredKg, cost, pricePerKg } = calculateGreenBeanPurchase(farm, kg, Math.random, state.turn);
     if (deliveredKg <= 0 || state.cash < cost) return;
 
     const lot: GreenBeanLot = {
@@ -61,7 +62,7 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
       farmId,
       qGrade: farm.qGrade,
       kg: deliveredKg,
-      pricePerKg: farm.pricePerKg,
+      pricePerKg,
       purchasedAtTurn: state.turn,
     };
 
@@ -155,7 +156,7 @@ export const createSupplyChainSlice: StateCreator<GameStore, [], [], SupplyChain
     const farm = farms.find((f) => f.id === farmId);
     if (!farm) return;
 
-    const price = calculateFarmAcquisitionPrice(farm);
+    const price = calculateFarmAcquisitionPrice(farm, state.turn);
     if (state.cash < price) return;
 
     const ownedFarm: OwnedFarm = {

@@ -1,8 +1,10 @@
 import type { Farm, RoastLevel } from '../types/supplyChain.js';
+import { calculateEffectiveBeanPrice } from './beanMarket.js';
 
 export interface GreenBeanPurchaseResult {
   deliveredKg: number;
   cost: number;
+  pricePerKg: number; // 実際に適用された単価(turn省略時はfarm.pricePerKgそのもの)
 }
 
 const SUPPLY_DISRUPTION_DELIVERY_RATE = 0.7;
@@ -10,18 +12,21 @@ const SUPPLY_DISRUPTION_DELIVERY_RATE = 0.7;
 /**
  * 生豆購入結果を算定する。requestedKgは農園のavailableKgPerMonthで頭打ちにし、
  * reliability(供給安定性)に応じた確率で供給不足(70%しか届かない)が発生する。
+ * turnを渡すとcalculateEffectiveBeanPriceによる価格変動を反映する(省略時は基準価格のまま、既存呼び出しと後方互換)。
  */
 export function calculateGreenBeanPurchase(
   farm: Farm,
   requestedKg: number,
-  rng: () => number = Math.random
+  rng: () => number = Math.random,
+  turn?: number
 ): GreenBeanPurchaseResult {
   const cappedKg = Math.min(requestedKg, farm.availableKgPerMonth);
   const isDisrupted = rng() > farm.reliability / 100;
   const deliveredKg = isDisrupted ? Math.round(cappedKg * SUPPLY_DISRUPTION_DELIVERY_RATE) : cappedKg;
-  const cost = Math.round(deliveredKg * farm.pricePerKg);
+  const effectivePricePerKg = turn === undefined ? farm.pricePerKg : calculateEffectiveBeanPrice(farm, turn);
+  const cost = Math.round(deliveredKg * effectivePricePerKg);
 
-  return { deliveredKg, cost };
+  return { deliveredKg, cost, pricePerKg: effectivePricePerKg };
 }
 
 const ROAST_YIELD_RATE: Record<RoastLevel, number> = {
@@ -97,9 +102,11 @@ export function calculateMenuItemPreferenceScore(inputs: MenuItemPreferenceInput
 
 /**
  * 自社農園の買収価格。月産量×市場単価の24ヶ月分を目安にする(不動産投資評価と同系統のロジック)。
+ * turnを渡すとcalculateEffectiveBeanPriceによる価格変動を反映する(省略時は基準価格のまま、既存呼び出しと後方互換)。
  */
-export function calculateFarmAcquisitionPrice(farm: Farm): number {
-  return Math.round(farm.availableKgPerMonth * farm.pricePerKg * 24);
+export function calculateFarmAcquisitionPrice(farm: Farm, turn?: number): number {
+  const effectivePricePerKg = turn === undefined ? farm.pricePerKg : calculateEffectiveBeanPrice(farm, turn);
+  return Math.round(farm.availableKgPerMonth * effectivePricePerKg * 24);
 }
 
 const FARM_HARVEST_FAILURE_PROBABILITY = 0.12; // 天候リスク: 毎ターン12%の確率で不作が発生する

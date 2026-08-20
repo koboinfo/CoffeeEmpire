@@ -14,6 +14,7 @@ function makeFarm(overrides: Partial<Farm> = {}): Farm {
     id: 'farm-1',
     country: 'brazil',
     qGrade: 78,
+    flavor: { aroma: 55, acidity: 35, bitterness: 55 },
     pricePerKg: 6.5,
     availableKgPerMonth: 5000,
     reliability: 80,

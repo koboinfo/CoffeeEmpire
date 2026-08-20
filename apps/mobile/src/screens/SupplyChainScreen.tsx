@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { calculateFarmAcquisitionPrice, farms, type RoastLevel } from '@coffee-empire/core';
+import {
+  calculateEffectiveBeanPrice,
+  calculateFarmAcquisitionPrice,
+  farms,
+  type Farm,
+  type RoastLevel,
+} from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { Card } from '../components/Card';
 import { AppButton } from '../components/AppButton';
@@ -20,6 +26,42 @@ function OriginThumb({ country }: { country: string }) {
 
 function formatCurrency(amount: number): string {
   return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
+}
+
+const FLAVOR_LABELS: { key: keyof Farm['flavor']; label: string }[] = [
+  { key: 'aroma', label: '香り' },
+  { key: 'acidity', label: '酸味' },
+  { key: 'bitterness', label: '苦味' },
+];
+
+function FlavorBars({ flavor }: { flavor: Farm['flavor'] }) {
+  return (
+    <View style={styles.flavorRow}>
+      {FLAVOR_LABELS.map(({ key, label }) => (
+        <View key={key} style={styles.flavorItem}>
+          <Text style={styles.flavorLabel}>{label}</Text>
+          <View style={styles.flavorTrack}>
+            <View style={[styles.flavorFill, { width: `${flavor[key]}%` }]} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PriceTrend({ basePrice, effectivePrice }: { basePrice: number; effectivePrice: number }) {
+  const diffRate = effectivePrice / basePrice - 1;
+  if (Math.abs(diffRate) < 0.01) return null;
+  const isUp = diffRate > 0;
+  return (
+    <View style={styles.priceTrendRow}>
+      <Ionicons name={isUp ? 'trending-up' : 'trending-down'} size={12} color={isUp ? colors.negative : colors.positive} />
+      <Text style={[styles.priceTrendText, { color: isUp ? colors.negative : colors.positive }]}>
+        {isUp ? '+' : ''}
+        {Math.round(diffRate * 100)}%
+      </Text>
+    </View>
+  );
 }
 
 const KG_PRESETS = [50, 100, 200];
@@ -84,26 +126,35 @@ export function SupplyChainScreen() {
 
       <Card>
         <SectionLabel icon="leaf" label="農園から生豆を仕入れる" />
-        {farms.map((farm) => (
-          <View key={farm.id} style={styles.farmRow}>
-            <View style={styles.farmRowHeader}>
-              <OriginThumb country={farm.country} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>
-                  {farm.country} (Q{farm.qGrade}) {formatCurrency(farm.pricePerKg)}/kg
-                </Text>
-                <Text style={styles.subLabel}>供給安定性 {farm.reliability}%</Text>
+        {farms.map((farm) => {
+          const effectivePrice = calculateEffectiveBeanPrice(farm, state.turn);
+          return (
+            <View key={farm.id} style={styles.farmRow}>
+              <View style={styles.farmRowHeader}>
+                <OriginThumb country={farm.country} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>
+                    {farm.country} (Q{farm.qGrade})
+                  </Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.subLabel}>
+                      {formatCurrency(effectivePrice)}/kg ・ 供給安定性 {farm.reliability}%
+                    </Text>
+                    <PriceTrend basePrice={farm.pricePerKg} effectivePrice={effectivePrice} />
+                  </View>
+                </View>
+              </View>
+              <FlavorBars flavor={farm.flavor} />
+              <View style={styles.presetRow}>
+                {KG_PRESETS.map((kg) => (
+                  <Pressable key={kg} style={styles.presetButton} onPress={() => purchaseBeans(farm.id, kg)}>
+                    <Text style={styles.presetButtonText}>{kg}kg</Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
-            <View style={styles.presetRow}>
-              {KG_PRESETS.map((kg) => (
-                <Pressable key={kg} style={styles.presetButton} onPress={() => purchaseBeans(farm.id, kg)}>
-                  <Text style={styles.presetButtonText}>{kg}kg</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ))}
+          );
+        })}
       </Card>
 
       <Card>
@@ -133,7 +184,7 @@ export function SupplyChainScreen() {
         {farms
           .filter((farm) => !state.ownedFarms.some((owned) => owned.farmId === farm.id))
           .map((farm) => {
-            const price = calculateFarmAcquisitionPrice(farm);
+            const price = calculateFarmAcquisitionPrice(farm, state.turn);
             const affordable = state.cash >= price;
             return (
               <Pressable
@@ -267,6 +318,14 @@ const styles = StyleSheet.create({
   farmRow: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
   farmRowHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   originThumb: { height: 32, width: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  priceTrendRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  priceTrendText: { fontSize: 11, fontWeight: '600' },
+  flavorRow: { flexDirection: 'row', gap: spacing.sm },
+  flavorItem: { flex: 1, gap: 2 },
+  flavorLabel: { fontSize: 10, color: colors.textMuted },
+  flavorTrack: { height: 4, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  flavorFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.roast },
   presetRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
   presetButton: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.sm, alignItems: 'center' },
   presetButtonText: { fontSize: 12, fontWeight: '600', color: colors.textPrimary },
