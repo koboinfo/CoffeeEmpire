@@ -143,7 +143,7 @@ export function CityMapScreen() {
                       backgroundColor: buildingColor,
                       opacity: store || investment ? 0.9 : 0.55,
                       borderWidth: isSelected ? 2 : 0,
-                      borderColor: colors.white,
+                      borderColor: colors.roast,
                       alignItems: 'center',
                       justifyContent: 'flex-start',
                       paddingTop: 6,

@@ -16,12 +16,14 @@
 
 ### 1-1. スタイル接尾辞（Style Suffix）
 
+> 2026年8月改訂: アプリ本体のUIテーマをダークネイビーから「白基調 + スカイブルー + オレンジ + イエロー」の明るいトーンに刷新した(`apps/mobile/src/theme/theme.ts`)。以降に発注する画像アセットは全てこの新テーマに合わせる。
+
 ```
-dark editorial game-art illustration, deep navy-teal base (#141F29) with
-roasted-orange accent (#D9722C), muted cream highlights (#F3E4D0),
-low-saturation cinematic color grading, soft volumetric light,
-clean vector-adjacent shapes with subtle grain, no text, no logos,
-no user interface elements, flat lighting on midtones
+bright editorial game-art illustration, clean white base (#FFFFFF) with a soft
+sky-blue wash (#EAF6FF), vivid warm-orange accent (#FF7A1A), sunny yellow-gold
+highlights (#FFC53D), high-key cheerful lighting, crisp saturated color grading,
+clean vector-adjacent shapes with subtle grain, high readability at small sizes,
+no text, no logos, no user interface elements, flat lighting on midtones
 ```
 
 ### 1-2. ネガティブ / 除外指定
@@ -30,8 +32,8 @@ Midjourney は `--no`、SD 系は negative prompt に入れる。
 
 ```
 --no text, letters, watermark, signature, logo, brand marks, UI overlay,
-   buttons, HUD, people faces in closeup, distorted hands, oversaturated colors,
-   pure white background, neon cyberpunk pink, lens flare
+   buttons, HUD, people faces in closeup, distorted hands, muddy or desaturated
+   colors, dark moody lighting, pure black background, neon cyberpunk pink, lens flare
 ```
 
 ### 1-3. 推奨パラメータ
@@ -65,7 +67,9 @@ Midjourney は `--no`、SD 系は negative prompt に入れる。
 
 ## 2. 都市マップ背景（12都市）
 
-**用途**: `MapScreen` の 2 カラム都市カード背景、および `NewStoreScreen` のヘッダー。
+> **注意(2026年8月)**: 以下のプロンプトは旧ダークネイビーテーマ時代のもので、配色指定(`<STYLE SUFFIX>`展開部分含む)が現行の明るいテーマと食い違っている。**Geminiで都市マップ画像を発注する場合は代わりに`docs/gemini_city_map_prompts.md`を使うこと**。ここに残しているのは構図・ランドマーク要素の参考のため。
+
+**用途**: `MapScreen` の 2 カラム都市カード背景、`NewStoreScreen` のヘッダー、および `CityMapScreen` の都市マップ背景。
 **構図の共通指示**: カード上に緑/赤のドットと都市名テキストが重なるため、**上部 30% と下部 25% は情報量を落とし、中央帯にランドマークを寄せる**こと。
 
 各プロンプトは以下の雛形に当てはめてある。
@@ -287,7 +291,7 @@ saturated deep greens muted by constant humidity, <STYLE SUFFIX> --ar 4:3
 ## 5. イベント／ニュース挿絵（`events.ts` の 10 種）
 
 **用途**: `NewsScreen` のフィード行サムネイル、および発生時のトースト。
-**共通指示**: 正方形・**被写体は1つのメタファーに絞る**（64〜96pt で表示されるため、要素を足すと潰れる）。ポジティブ系は `#D9722C`、ネガティブ系は `#E2564B` を主役色に。
+**共通指示**: 正方形・**被写体は1つのメタファーに絞る**（64〜96pt で表示されるため、要素を足すと潰れる）。ポジティブ系は `#FF7A1A`、ネガティブ系は `#E5483C` を主役色に。
 
 | イベントid | プロンプト本体（末尾に `<STYLE SUFFIX> --ar 1:1 --v 7 --style raw`） |
 |---|---|
@@ -312,8 +316,9 @@ saturated deep greens muted by constant humidity, <STYLE SUFFIX> --ar 4:3
 ```
 abstract marketing campaign key visual for a coffee brand, <CONCEPT>,
 geometric composition built from concentric circles and coffee-bean forms,
-deep navy field with a single roasted-orange focal element and cream linework,
-poster-like negative space, no text, <STYLE SUFFIX> --ar 3:2 --v 7 --style raw
+bright white field with a single vivid orange focal element, sky-blue linework
+and a small sunny yellow accent, poster-like negative space, no text,
+<STYLE SUFFIX> --ar 3:2 --v 7 --style raw
 ```
 
 `<CONCEPT>` の差し替え候補:
@@ -331,9 +336,9 @@ poster-like negative space, no text, <STYLE SUFFIX> --ar 3:2 --v 7 --style raw
 
 ```
 minimal vertical gradient backdrop for a business simulation game store page,
-deep navy-teal (#141F29) at the top falling to near-black at the bottom,
+soft sky-blue (#EAF6FF) at the top falling to clean white at the bottom,
 a very large soft-focus coffee bean form bleeding off the left edge at 8% opacity,
-one diffuse roasted-orange light bloom in the upper third,
+one diffuse warm-orange light bloom in the upper third with a faint yellow-gold glint,
 completely empty center for UI compositing, no text, no logos, no devices
 --ar 9:19.5 --v 7 --style raw --q 2
 ```
@@ -344,7 +349,7 @@ completely empty center for UI compositing, no text, no logos, no devices
 
 発注した画像を採用する前に、以下を全て満たすか確認する。1つでも外れたら再生成する。
 
-1. **配色**: スポイトで拾った暗部が `#141F29` 近傍、アクセントが `#D9722C` 近傍にある。青紫やシアンに転んでいない。
+1. **配色**: スポイトで拾ったベースが `#FFFFFF`〜`#EAF6FF` 近傍(白〜淡いスカイブルー)、アクセントが `#FF7A1A`(オレンジ)または `#FFC53D`(イエロー)近傍にある。暗く沈んだトーンや紫・シアンに転んでいない。
 2. **文字**: 看板・ポスター等に読めない疑似文字が残っていない（潰れた文字は最も安っぽく見える）。
 3. **構図**: 都市マップは上部30%・下部25%が空いている（ドットと都市名が乗る）。
 4. **実在物**: 実在ブランドのロゴ、識別可能な実在人物、既存ゲームのアートに酷似した要素が無い。

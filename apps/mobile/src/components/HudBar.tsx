@@ -80,7 +80,7 @@ export function HudBar() {
         </View>
         <View style={styles.rightRow}>
           <Pressable style={styles.bellButton} onPress={() => navigation.navigate('News')}>
-            <Ionicons name="newspaper-outline" size={16} color={colors.cream} />
+            <Ionicons name="newspaper-outline" size={16} color={colors.textSecondary} />
             {state.history.newsFeed.length > 0 ? <View style={styles.bellDot} /> : null}
           </Pressable>
           <GameSpeedControl />
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  dateText: { ...typography.label, color: colors.cream },
+  dateText: { ...typography.label, color: colors.textPrimary },
   entityBadge: {
     backgroundColor: colors.hudPill,
     borderWidth: 1,
@@ -164,5 +164,5 @@ const styles = StyleSheet.create({
     borderColor: colors.hudPillBorder,
   },
   pillLabel: { fontSize: 10, fontWeight: '600', color: colors.textMuted },
-  pillValue: { fontSize: 13, fontWeight: '700', color: colors.white },
+  pillValue: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
 });

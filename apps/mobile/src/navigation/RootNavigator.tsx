@@ -94,7 +94,7 @@ export function RootNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.header },
-        headerTintColor: colors.white,
+        headerTintColor: colors.textPrimary,
         headerTitleStyle: { fontWeight: '700' },
       }}
     >

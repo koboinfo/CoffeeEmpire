@@ -28,21 +28,21 @@ export function GridBackdrop({ image, glowColor = colors.roast, className, style
       ) : (
         <>
           <LinearGradient
-            colors={[colors.header, colors.background, '#0A0F14']}
+            colors={[colors.background, '#FFFFFF', '#F5FBFF']}
             start={{ x: 0.1, y: 0 }}
             end={{ x: 0.9, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
           <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
             {GRID_LINES.map((pos) => (
-              <Line key={`v${pos}`} x1={pos} y1={0} x2={pos} y2={100} stroke={colors.border} strokeWidth={0.15} opacity={0.35} />
+              <Line key={`v${pos}`} x1={pos} y1={0} x2={pos} y2={100} stroke={colors.border} strokeWidth={0.15} opacity={0.45} />
             ))}
             {GRID_LINES.map((pos) => (
-              <Line key={`h${pos}`} x1={0} y1={pos} x2={100} y2={pos} stroke={colors.border} strokeWidth={0.15} opacity={0.35} />
+              <Line key={`h${pos}`} x1={0} y1={pos} x2={100} y2={pos} stroke={colors.border} strokeWidth={0.15} opacity={0.45} />
             ))}
           </Svg>
           <View pointerEvents="none" style={[styles.glow, styles.glowTopRight, { backgroundColor: glowColor }]} />
-          <View pointerEvents="none" style={[styles.glow, styles.glowBottomLeft, { backgroundColor: colors.roastLight }]} />
+          <View pointerEvents="none" style={[styles.glow, styles.glowBottomLeft, { backgroundColor: colors.sky }]} />
         </>
       )}
       {children}
