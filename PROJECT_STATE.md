@@ -263,3 +263,52 @@ Step B時点で「新規データモデル設計が必要」としてスコー�
 - フランチャイズはフランチャイジー側の経営破綻・契約解除・royaltyRate/monthlyGrossRevenueEstimateの経時変化(季節変動等)を再現しない(契約時点の固定見積もりのまま)。
 - 取締役会信任スコアは3シグナルの単純な加減点モデルであり、実際の株主総会での議決権行使シミュレーションではない(`calculateCreditRating`/`calculateDynamicStockPrice`と同系統の設計判断)。
 - 不動産の空室リスクは物件ごとに独立した確率判定(都市の景況感・季節性とは連動しない)。
+
+## Phase I(完了、core実装のみ) — VC/スタートアップ投資・地価の年次更新
+
+「Coffee Inc 2 Teardown」レポート(ユーザー提供、第2部の設計案+付録Aの実装差分表)で「未実装」と明記されていた2項目を追加した。実行時、別セッションが`turnEngine.ts`/`financials.ts`/`corporate.ts`/`research.ts`/`simState.ts`等を並行編集中だったため、それらに一切触れず独立した新規ファイルのみで完結させている。詳細は`HANDOFF.md`の「Phase I」節を参照。
+
+- `types/startup.ts`・`data/startupCatalog.ts`・`logic/startupInvestment.ts`(+テスト15件): レポート§3-2のステージ遷移確率表(SEED→SERIES_A→SERIES_B→GROWTH→EXITED/FAILED)・シナジー業種補正をそのまま実装。
+- `logic/landValue.ts`(+テスト6件): レポート§3-3の地価年次更新。自社の同一都市店舗数密度が地価に効く自己強化ループ(`calculateCommercialDensity`)を実装。
+- `index.ts`に上記モジュールのexportを追記。
+
+## Phase J(完了、core実装のみ) — Huff需要モデル・スノーボール抑制機構・アラート評価
+
+Phase Iに続き、同レポートが未実装と指摘していた残り項目のうち、ロック中ファイルに触れず追加できるものを実装した。詳細は`HANDOFF.md`の「Phase J」節を参照。
+
+- `logic/demandAllocation.ts`(+テスト10件): レポート§2-1のHuffモデル。既存の`calculateStoreRevenue`(financials.ts)を置き換える候補として設計しているが統合は未着手。
+- `logic/scaleEconomics.ts`(+テスト7件): レポート§6-1のスノーボール抑制機構(本社費超線形化・市場飽和・独占禁止シェア上限・競合AIラバーバンド)。
+- `logic/alerts.ts`(+テスト8件): レポート§5-2のManagement by Exception。店舗/全社レベルの閾値ベースアラート評価。
+
+**このセッション中に確認**: Phase Iで記録した`calculateCityMarketShare`重複exportのビルドエラーは、別セッションの編集が進んだことで解消されていた(本セッションでは未修正)。
+
+**未着手**: `simState`へのフィールド追加(`vcPortfolio`/`startups`)、`turnEngine`の四半期/年次フックへの配線、`apps/mobile`側UI。いずれも次回セッション行き。
+
+**このセッション中に発見した既存バグ(未修正)**: `logic/competitorAI.ts`の`calculateCityMarketShare`と、別セッションが並行編集中の`logic/corporate.ts`に追加された同名関数が衝突し、`packages/core`の`npm run build`(`tsc`)がエラー終了する(`dist/`自体は生成される)。`corporate.ts`が並行編集中のため本セッションでは修正せず、`HANDOFF.md`に詳細を記録した。
+
+## Phase K(完了) — Phase I/Jの統合
+
+Phase I/Jで独立ファイルとして実装済み・未統合のまま残っていた項目を、`turnEngine.ts`/`corporate.ts`/`financials.ts`/`competitorAI.ts`/`apps/mobile`側へ統合した。統合作業に入る前、このセッション自身が別途、本社費の超線形化(`financials.calculateManagementOverheadCost`)と独占禁止規制(`corporate.wouldExceedAntitrustCap`)を並行して実装しており、`scaleEconomics.ts`の`calculateHqOverheadMultiplier`/`isAntitrustViolation`/`canOpenNewStoreInCity`と機能重複していることが判明した。
+
+### 重複解消の判断
+
+このセッション側の実装を正とした。理由: ①`wouldExceedAntitrustCap`は都市の店舗総数が`ANTITRUST_MIN_CITY_STORES`(5店)未満なら規制対象外にするフロアを持つが、`scaleEconomics.isAntitrustViolation`は単純な`ratio > 0.8`判定のみで、競合0・自社0の都市への1店舗目が理論シェア100%として即ブロックされる欠陥がある。②`calculateManagementOverheadCost`は本社の部門(HR/IT/マーケ/財務)投資による割引(レベル1につき8%、上限60%)を持つが、`calculateHqOverheadMultiplier`は単純な`storeCount^1.15`倍率のみ。③このセッション側は`NewStoreScreen.tsx`/`turnEngine.ts`への実配線・テストまで完了済みだった。`scaleEconomics.ts`からは重複3関数を削除し、非重複の`calculateMarketSaturationFactor`(同一都市の自社店舗カニバリゼーション)・`calculateCompetitorRubberBandGrowthRate`(競合AI成長率のラバーバンド)は残して今回新たに配線した。
+
+### 配線した内容
+
+- **市場飽和(カニバリゼーション)**: `turnEngine.ts`の店舗ループで、同一都市の自社店舗数(`context.properties`経由でcityId一致をカウント)から`calculateMarketSaturationFactor`を算出し、`revenue`/`variableCost`の既存の乗算チェーン(`competitivePressure`等と同列)に追加。単店舗の都市では1.0倍(無影響)。
+- **競合AIラバーバンド**: `competitorAI.ts`の`CompetitorMarketContext`に`playerGrowthRate?: number`を追加。`decideCompetitorAction`の出店拡大判定で、`EXPANSION_PROBABILITY`(基礎値0.3)に`(1 + calculateCompetitorRubberBandGrowthRate(playerGrowthRate))`を乗じた実効確率を使う。`playerGrowthRate`は新規のstore-count履歴を追加保存せず、既存の`Store.openedAtTurn`から「直近6ターン(`RUBBER_BAND_WINDOW_TURNS`)で開店した店舗数 / それ以前の店舗数」として近似する設計にした(履歴配列を増やすとセーブ移行の懸念が出るため、既存フィールドの再利用を優先した)。
+- **alerts(company-levelのみ)**: `DashboardScreen.tsx`に`evaluateCompanyAlerts({ cash, monthlyFixedCosts: latestIncomeStatement.operatingExpenses })`のバナー表示を追加。`evaluateStoreAlerts`(店舗単位・稼働率/士気/都市シェア)は時間の都合で未着手。`StoreDetailScreen.tsx`の`OverviewTab.tsx`に、稼働率超過時の手書き警告文が別作業で既に存在するため、次回はそれを`evaluateStoreAlerts`呼び出しへ置き換えて一本化するのが望ましい。
+- **VC/スタートアップ投資**: `CoffeeEmpireState`に`startups?: Startup[]`/`vcPortfolio?: StartupInvestment[]`(additive/optional)。`turnEngine.ts`に`STARTUP_QUARTER_INTERVAL_TURNS = 3`の四半期フックを新設し、①`advanceStartup`で全案件のステージ遷移、②現役案件(seed/seriesA/seriesB/growth)が`MAX_ACTIVE_STARTUP_OPPORTUNITIES`(4件)未満なら`STARTUP_SEED_POOL`から新規案件を1件補充、③そのターンに新規でexitedへ遷移した案件のうち自社が出資しているものを検出し`ownershipStake × 更新後valuation`を即時現金化(`vcExitCashEffect`として`operatingCashFlow`へ合算。investingCashFlowが既存実装で0固定のため、既存の`eventCashEffect`と同じ簡略化パターンを踏襲)、④該当投資を`vcPortfolio`から除去、を行う。failedになった投資は追加のcash効果なし(投資額は出資時点で既に支払い済みの全損として扱う、という既存レポート設計をそのまま反映)。`financeSlice.ts`に`investInStartup`(固定¥2,000,000/クリック)、`CorporateScreen.tsx`のM&Aタブに投資候補一覧・ポートフォリオ評価額(`calculatePortfolioValue`)表示を追加。
+- **地価の年次更新**: `RealEstateInvestment`に`landValue?: number`(additive/optional。既存の賃料計算(`monthlyRentalIncome`)には一切影響しない、キャピタルゲイン追跡専用の値として設計)。`turnEngine.ts`の決算フック(既存の`isSettlementTurn`、年1回=12ターン)で、保有不動産ごとに`updateLandValueAnnual`を呼ぶ。`cityBaseGrowthRate`は`City.incomeLevel`(既存フィールド、成長率専用フィールドは無いため近似)から年0.5〜4%の範囲で算出、`commercialDensity`は`playerStoresByCity`(既存の競合AI用集計を再利用)から`calculateCommercialDensity`で算出、`footTrafficGrowthRate`は人流の履歴を保持していないため常に0(既知の簡略化)。`financeSlice.sellRealEstate`の払戻を`purchasePrice`固定から`landValue ?? purchasePrice`ベース(含み損益が実現する)に変更。`RealEstateScreen.tsx`に保有物件一覧(地価・含み損益・売却ボタン)を新設(従来は購入導線のみで保有物件の一覧表示自体が無かった)。
+
+### 検証
+
+`packages/core`テスト327→333件に拡張、全パス。`apps/mobile`は`npx tsc --noEmit`および`--noUnusedLocals --noUnusedParameters`付きでもエラーなし確認済み(統合作業中に生じた未使用import 2件は解消済み)。
+
+### 既知のギャップ・簡略化(Phase K時点)
+
+- `evaluateStoreAlerts`(店舗単位アラート)は未配線。
+- `demandAllocation.ts`(Huffモデル)による`calculateStoreRevenue`の置き換えは未着手。既存の全テスト・ゲームバランスに影響するため、着手前にユーザーとの設計相談が必要と判断し保留した。
+- VC投資は出資額固定(¥2,000,000/クリック)。可変額入力UIは無い。
+- 地価の`footTrafficGrowthRate`は常に0(人流の履歴を保持していないため)。

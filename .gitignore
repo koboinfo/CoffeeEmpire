@@ -12,3 +12,4 @@ ios/DerivedData/
 android/build/
 android/.gradle/
 android/app/build/
+.Rhistory
