@@ -17,6 +17,10 @@ import {
   buildCashFlowStatement,
   averageMenuPrice,
   averageMenuQuality,
+  calculateUtilization,
+  calculateUtilizationSatisfactionDelta,
+  calculateUtilizationMotivationDelta,
+  calculateManagementOverheadCost,
 } from './financials.js';
 import { rollEvents, applyEffect } from './events.js';
 import { resolveEventEffect } from '../data/eventEffectRanges.js';
@@ -31,6 +35,10 @@ import {
 import { applyExecutiveAutomation, calculateDynamicStockPrice, calculateMarketShareRatio } from './corporate.js';
 import { serviceLoans } from './loans.js';
 import { calculateCompetitivePressure, simulateCompetitorTurn } from './competitorAI.js';
+import { calculateMarketSaturationFactor } from './scaleEconomics.js';
+import { advanceStartup, createStartupFromSeed } from './startupInvestment.js';
+import { STARTUP_SEED_POOL } from '../data/startupCatalog.js';
+import type { Startup, StartupInvestment } from '../types/startup.js';
 import { calculateResearchEffects } from './research.js';
 import { calculateOwnedFarmHarvest } from './supplyChain.js';
 import { calculateEmployerSocialInsurance, calculateAnnualSettlement } from './taxes.js';
@@ -38,6 +46,8 @@ import { evaluateNewAchievements } from './achievements.js';
 import { checkVictoryCondition } from './gameOutcome.js';
 import { achievements, type AchievementDefinition } from '../data/achievements.js';
 import { calculateRealEstateMonthlyResult } from './realEstateLogic.js';
+import { updateLandValueAnnual, calculateCommercialDensity } from './landValue.js';
+import type { RealEstateInvestment } from '../types/corporate.js';
 import { calculateFranchiseRoyaltyIncome } from './franchiseLogic.js';
 import {
   BOARD_CONFIDENCE_DEFAULT,
@@ -48,6 +58,10 @@ import {
 
 /** 決算(年1回)の間隔。turnUnitが'month'固定のため12ターン=1年とする。 */
 export const SETTLEMENT_INTERVAL_TURNS = 12;
+/** VC投資のステージ遷移判定・新規案件補充の間隔(四半期=3ターン)。 */
+export const STARTUP_QUARTER_INTERVAL_TURNS = 3;
+/** 同時に投資検討できるスタートアップ案件数の上限(seed/seriesA/seriesBの現役案件のみ数える)。 */
+const MAX_ACTIVE_STARTUP_OPPORTUNITIES = 4;
 
 export interface TurnContext {
   properties: Record<string, Property>;
@@ -59,6 +73,13 @@ export interface StoreReport {
   storeId: string;
   revenue: number;
   customers: number;
+  /** 座席数×回転率から算出した月間の物理的な収容上限。稼働率(customers/capacity)の表示に使う。 */
+  capacity: number;
+  /**
+   * 座席キャパシティでクランプする前の生の需要客数。customersと違いcapacityを超えうるため、
+   * demandCustomers/capacityは客数上のcustomers/capacity(最大100%)と違い、真の混雑度(100%超も)を表す。
+   */
+  demandCustomers: number;
 }
 
 export interface AdvanceTurnResult {
@@ -165,6 +186,12 @@ export function advanceTurn(
 
     // 競合の出店密度による需要干渉(0.5-1.0倍)。都市内の競合店舗が多いほど客足が落ちる。
     const competitivePressure = calculateCompetitivePressure(property.cityId, state.competitorBrands);
+    // 市場飽和(カニバリゼーション): 同一都市の自社店舗数が増えるほど1店舗あたりの実効需要係数が
+    // 逓減する(都市の需要プールは有限であるため)。1店舗なら1.0、店舗数が増えるほど下限0.15まで逓減する。
+    const storeCountInSameCity = state.stores.filter(
+      (s) => context.properties[s.propertyId]?.cityId === property.cityId
+    ).length;
+    const marketSaturationFactor = calculateMarketSaturationFactor(storeCountInSameCity);
     const interiorQualityFactor = calculateInteriorQualityFactor(store.equipment);
     const cityAwarenessFactor = calculateCityAwarenessRevenueFactor(getCityBrandAwareness(cityBrandAwareness, property.cityId));
 
@@ -178,18 +205,26 @@ export function advanceTurn(
     triggeredStoreEvents.push(...storeEventResults);
     const storeEventRevenueMultiplier = storeEventResults.reduce((mult, event) => mult * event.revenueMultiplier, 1);
     storeEventCashEffect += storeEventResults.reduce((sum, event) => sum + event.cashAmount, 0);
-    if (storeEventResults.length > 0) {
-      storeSatisfactionDeltaById[store.id] = storeEventResults.reduce(
-        (sum, event) => sum + event.satisfactionDelta,
-        0
-      );
-      storeMotivationDeltaById[store.id] = storeEventResults.reduce((sum, event) => sum + event.motivationDelta, 0);
+    const storeEventSatisfactionDelta = storeEventResults.reduce((sum, event) => sum + event.satisfactionDelta, 0);
+    const storeEventMotivationDelta = storeEventResults.reduce((sum, event) => sum + event.motivationDelta, 0);
+
+    // 稼働中のマーケティング施策(SNS/ロイヤルティ等)とR&D(marketing/staffブランチ等)による
+    // 入店率・リピート率ボーナスを集計する。施策はcityId指定ならその都市の店舗のみ、
+    // cityId未指定(全社対象)は全店舗に適用する。R&D効果は元々全店舗一律。
+    let entryRateBonus = researchEffects.entryRateBonus;
+    let repeatRateBonus = researchEffects.repeatRateBonus;
+    for (const campaign of state.activeCampaigns) {
+      if (campaign.cityId && campaign.cityId !== property.cityId) continue;
+      if (state.turn - campaign.startedAtTurn >= campaign.durationTurns) continue;
+      entryRateBonus += campaign.entryRateBonus ?? 0;
+      repeatRateBonus += campaign.repeatRateBonus ?? 0;
     }
 
-    const rawRevenue = calculateStoreRevenue(store, property, city);
+    const rawRevenue = calculateStoreRevenue(store, property, city, { entryRateBonus, repeatRateBonus });
     const revenue =
       rawRevenue.revenue *
       competitivePressure *
+      marketSaturationFactor *
       researchEffects.revenueMultiplier *
       interiorQualityFactor *
       storeEventRevenueMultiplier *
@@ -198,13 +233,26 @@ export function advanceTurn(
     const variableCost =
       rawRevenue.variableCost *
       competitivePressure *
+      marketSaturationFactor *
       researchEffects.costMultiplier *
       interiorQualityFactor *
       storeEventRevenueMultiplier *
       seasonalFactor *
       cityAwarenessFactor;
     plItems.push({ key: `revenue:${store.id}`, label: `${store.name} 売上`, amount: revenue, kind: 'revenue' });
-    storeReports[store.id] = { storeId: store.id, revenue, customers: rawRevenue.customers };
+    storeReports[store.id] = {
+      storeId: store.id,
+      revenue,
+      customers: rawRevenue.customers,
+      capacity: rawRevenue.capacity,
+      demandCustomers: rawRevenue.demandCustomers,
+    };
+
+    // 混雑(稼働率>85%)による満足度・従業員モチベーションへの悪化(店舗イベントとは独立に毎ターン発生する)。
+    // 店舗イベント由来のデルタと合算して1つのdeltaにまとめる。
+    const utilization = calculateUtilization(rawRevenue.demandCustomers, rawRevenue.capacity);
+    storeSatisfactionDeltaById[store.id] = storeEventSatisfactionDelta + calculateUtilizationSatisfactionDelta(utilization);
+    storeMotivationDeltaById[store.id] = storeEventMotivationDelta + calculateUtilizationMotivationDelta(utilization);
     plItems.push({
       key: `cogs:${store.id}`,
       label: `${store.name} 原材料費`,
@@ -245,6 +293,28 @@ export function advanceTurn(
   const payroll = calculatePayroll(state.employees);
   if (state.employees.length > 0) {
     plItems.push({ key: 'payroll', label: '人件費', amount: payroll, kind: 'fixedCost' });
+  }
+
+  // 本社家賃(headquarters設置済みの場合のみ)。以前はheadquarters.rentPerMonthが保持されているのに
+  // 毎月のPLに一切計上されないバグがあったため、ここで初めて費用化する。
+  if (state.headquarters) {
+    plItems.push({
+      key: 'rent:headquarters',
+      label: '本社家賃',
+      amount: state.headquarters.rentPerMonth,
+      kind: 'fixedCost',
+    });
+  }
+
+  // 店舗数に対して超線形に増える管理オーバーヘッド(規模の不経済)。本社の部門投資で割り引かれる。
+  const managementOverheadCost = calculateManagementOverheadCost(state.stores.length, state.headquarters);
+  if (managementOverheadCost > 0) {
+    plItems.push({
+      key: 'managementOverhead',
+      label: '本社管理オーバーヘッド',
+      amount: managementOverheadCost,
+      kind: 'fixedCost',
+    });
   }
 
   // ストックオプション/RSU相当の株式報酬費用(Phase A追加)。会計上はP&Lの費用として計上するが、
@@ -336,6 +406,39 @@ export function advanceTurn(
   const accumulatedPretaxIncome = state.fiscalPeriod.accumulatedPretaxIncome + provisionalIncomeStatement.pretaxIncome;
   const isSettlementTurn = nextTurn % SETTLEMENT_INTERVAL_TURNS === 0;
 
+  // VC/スタートアップ投資(レポート§3-2)。四半期(3ターン)ごとに全案件のステージ遷移を進め、
+  // 案件数が上限を割っていれば新規案件を1つ補充する。exited(イグジット)した案件に自社の
+  // 出資があれば、その時点の評価額×出資比率を即座に現金化してvcPortfolioから除く
+  // (failedは投資額が既に支払い済みの全損であり、追加のcash効果は発生しない)。
+  const isStartupQuarterTurn = nextTurn % STARTUP_QUARTER_INTERVAL_TURNS === 0;
+  let nextStartups: Startup[] = state.startups ?? [];
+  let nextVcPortfolio: StartupInvestment[] = state.vcPortfolio ?? [];
+  let vcExitCashEffect = 0;
+
+  if (isStartupQuarterTurn) {
+    const previousStageById = new Map(nextStartups.map((startup) => [startup.id, startup.stage]));
+    nextStartups = nextStartups.map((startup) => advanceStartup(startup, rng));
+
+    const investmentByStartupId = new Map(nextVcPortfolio.map((investment) => [investment.startupId, investment]));
+    for (const startup of nextStartups) {
+      if (startup.stage !== 'exited') continue;
+      if (previousStageById.get(startup.id) === 'exited') continue; // 既にイグジット済み(このターンの新規イグジットのみ対象)
+      const investment = investmentByStartupId.get(startup.id);
+      if (!investment) continue;
+      vcExitCashEffect += Math.round(startup.valuation * investment.ownershipStake);
+    }
+    nextVcPortfolio = nextVcPortfolio.filter((investment) => {
+      const startup = nextStartups.find((s) => s.id === investment.startupId);
+      return startup?.stage !== 'exited';
+    });
+
+    const activeOpportunityCount = nextStartups.filter((s) => s.stage !== 'exited' && s.stage !== 'failed').length;
+    if (activeOpportunityCount < MAX_ACTIVE_STARTUP_OPPORTUNITIES) {
+      const seedIndex = Math.floor(rng() * STARTUP_SEED_POOL.length);
+      nextStartups = [...nextStartups, createStartupFromSeed(seedIndex, nextTurn)];
+    }
+  }
+
   let incomeStatement = provisionalIncomeStatement;
   let settlement: SettlementResult | undefined;
   let nextAccumulatedPretaxIncome = accumulatedPretaxIncome;
@@ -385,7 +488,11 @@ export function advanceTurn(
   const paidInCapitalChange = capitalInjection;
 
   // 減価償却と同じく、株式報酬費用(非資金費用)もnetIncomeから足し戻して営業キャッシュフローを算定する。
-  const operatingCashFlow = incomeStatement.netIncome + totalMonthlyDepreciation + equityCompensationExpense + eventCashEffect;
+  // vcExitCashEffect: VC投資のイグジット時払戻。真の分類は投資キャッシュフローだが、
+  // investingCashFlowは既存実装で0固定(未モデル化)のため、他の自動発生する一時的cash効果
+  // (eventCashEffect)と同じ扱いでoperatingCashFlowに合算する(既存の簡略化パターンを踏襲)。
+  const operatingCashFlow =
+    incomeStatement.netIncome + totalMonthlyDepreciation + equityCompensationExpense + eventCashEffect + vcExitCashEffect;
   const investingCashFlow = 0;
   const dividendPayout = state.stock.isPublic
     ? state.stock.dividendPerSharePerTurn * state.stock.publicFloatShares
@@ -460,9 +567,42 @@ export function advanceTurn(
     playerStoresByCity[property.cityId] = (playerStoresByCity[property.cityId] ?? 0) + 1;
   }
 
+  // 自社の直近の出店ペース(ラバーバンド用)。openedAtTurnを使い、新規のstore-count履歴を
+  // 追加保存せずに「直近RUBBER_BAND_WINDOW_TURNSターンで開店した店舗の割合」から近似する。
+  const RUBBER_BAND_WINDOW_TURNS = 6;
+  const recentStoreOpenings = state.stores.filter((store) => state.turn - store.openedAtTurn < RUBBER_BAND_WINDOW_TURNS).length;
+  const priorStoreCount = Math.max(1, state.stores.length - recentStoreOpenings);
+  const playerGrowthRate = recentStoreOpenings / priorStoreCount;
+
+  // 地価の年次更新(レポート§3-3)。年1回(決算と同じ12ターン周期)、保有不動産ごとに
+  // 都市の所得水準から近似した基礎成長率+自社の同一都市出店密度(自己強化ループ)+ノイズで
+  // landValueを更新する。既存のmonthlyRentalIncome/purchasePriceには影響しない
+  // (地価はキャピタルゲインの追跡のみに使い、賃料計算のロジックは変更しない小さな統合)。
+  const nextOwnedRealEstate: RealEstateInvestment[] = isSettlementTurn
+    ? state.ownedRealEstate.map((investment) => {
+        const property = context.properties[investment.propertyId];
+        const city = property ? context.cities[property.cityId] : undefined;
+        if (!property || !city) return investment;
+
+        const ownStoreCountInCity = playerStoresByCity[property.cityId] ?? 0;
+        const incomeLevelRatio = Math.min(1, Math.max(0, city.incomeLevel / 10));
+        const cityBaseGrowthRate = 0.005 + incomeLevelRatio * 0.035; // 年0.5〜4%
+        const { landValue } = updateLandValueAnnual(
+          { landValue: investment.landValue ?? investment.purchasePrice },
+          {
+            cityBaseGrowthRate,
+            footTrafficGrowthRate: 0, // 人流の履歴を保持していないため中立(0)で近似する既知の簡略化
+            commercialDensity: calculateCommercialDensity(ownStoreCountInCity),
+            rng,
+          }
+        );
+        return { ...investment, landValue };
+      })
+    : state.ownedRealEstate;
+
   const { competitors: nextCompetitorBrands } = simulateCompetitorTurn(
     state.competitorBrands,
-    { playerAvgQuality, playerAvgPrice, cityIds: Object.keys(context.cities), playerStoresByCity },
+    { playerAvgQuality, playerAvgPrice, cityIds: Object.keys(context.cities), playerStoresByCity, playerGrowthRate },
     rng
   );
 
@@ -481,8 +621,28 @@ export function advanceTurn(
     return { ...employee, motivation: Math.min(100, Math.max(0, employee.motivation + delta)) };
   });
 
+  // state.statuses.avgQuality/employeeMoraleを実データ(全店舗メニュー品質の平均/全従業員motivationの平均)
+  // から再計算する。従来はワールド生成時の初期値(70/60)から動かず、これを発火条件とする
+  // quality-scandal/loyalty-program-successイベントが事実上永久に発火しない(または常に発火可能な)
+  // 状態になっていた既知のギャップだった。他のstatuses(brandAwareness等)はapplyEffect由来のまま無変更。
+  const nextEmployeeMorale = employeesAfterEvents.length
+    ? employeesAfterEvents.reduce((sum, employee) => sum + employee.motivation, 0) / employeesAfterEvents.length
+    : (statusState.statuses.employeeMorale?.value ?? 60);
+  const statusesWithLiveMetrics = {
+    ...statusState.statuses,
+    avgQuality: {
+      ...(statusState.statuses.avgQuality ?? { key: 'avgQuality', min: 0, max: 100, value: 0 }),
+      value: Math.min(100, Math.max(0, playerAvgQuality)),
+    },
+    employeeMorale: {
+      ...(statusState.statuses.employeeMorale ?? { key: 'employeeMorale', min: 0, max: 100, value: 0 }),
+      value: Math.min(100, Math.max(0, nextEmployeeMorale)),
+    },
+  };
+
   const provisionalNextState: CoffeeEmpireState = {
     ...statusState,
+    statuses: statusesWithLiveMetrics,
     activeCampaigns,
     cash: cashFlowStatement.endingCash,
     loans: loanServicing.updatedLoans,
@@ -494,6 +654,9 @@ export function advanceTurn(
     employees: employeesAfterEvents,
     brandAwarenessByCity: cityBrandAwareness,
     fiscalPeriod: { accumulatedPretaxIncome: nextAccumulatedPretaxIncome },
+    startups: nextStartups,
+    vcPortfolio: nextVcPortfolio,
+    ownedRealEstate: nextOwnedRealEstate,
     // 黒字倒産: 決算での一括納税等でcashが一度でもマイナスになったらtrueのまま固定する。
     isBankrupt: state.isBankrupt || cashFlowStatement.endingCash < 0,
     boardConfidence,

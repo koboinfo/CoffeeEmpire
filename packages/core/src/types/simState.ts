@@ -15,6 +15,7 @@ import type {
 } from './corporate.js';
 import type { TaxRule, IncomeStatement, BalanceSheet, CashFlowStatement, SettlementResult } from './finance.js';
 import type { FranchiseContract } from './franchise.js';
+import type { Startup, StartupInvestment } from './startup.js';
 
 /**
  * 基盤④(Sim Core Engine)のAPI概形(~/CoreEngines/core/04-sim-core/README.md)に準拠。
@@ -102,6 +103,20 @@ export interface CoffeeEmpireState extends SimState {
    * フランチャイズ契約(logic/franchiseLogic.ts参照)。未設定(旧セーブ含む)は空配列として扱う。
    */
   franchiseContracts?: FranchiseContract[];
+  /**
+   * Phase G追加のadditiveフィールド。会社全体で開発済み(=unlockCostを支払い済み)のメニュー
+   * テンプレートid(data/menuCatalog.tsのtemplateId)。ここに含まれるテンプレートのみ、
+   * 各店舗のメニューに追加できる。未設定(旧セーブ含む)は空配列として扱う。
+   */
+  unlockedMenuItemIds?: string[];
+  /**
+   * VC/スタートアップ投資(logic/startupInvestment.ts参照)。seed/seriesA/.../exited/failedの
+   * 全ステージを含む(投資候補プール兼、出資後の追跡)。未設定(旧セーブ含む)は空配列として扱う。
+   * 四半期(3ターン)ごとにturnEngine.advanceTurnが進行・新規案件の追加を行う。
+   */
+  startups?: Startup[];
+  /** 自社の出資履歴。startupIdでstartupsと対応する。未設定(旧セーブ含む)は空配列として扱う。 */
+  vcPortfolio?: StartupInvestment[];
   history: {
     incomeStatements: IncomeStatement[];
     balanceSheets: BalanceSheet[];

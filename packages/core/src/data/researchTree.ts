@@ -1,12 +1,17 @@
 import type { ResearchNodeDefinition } from '../types/research.js';
 
 /**
- * 3ブランチ(app/eco/machine)×2ティアのR&Dツリー。tier2はtier1が前提(prerequisiteId)。
- * app: モバイルオーダー&自社アプリ(売上バフ中心)
+ * 5ブランチ(app/eco/machine/marketing/staff)×5ティアのR&Dツリー。各ブランチは同一ブランチ内で
+ * tier1→tier2→...→tier5の直線的な前提関係(prerequisiteId)を持つ。
+ *
+ * app: モバイルオーダー&自社アプリ・会員基盤(客単価/リピート中心)
  * eco: エコ対応パッケージ・サプライチェーン(原価低減中心)
- * machine: 新型エスプレッソマシン・AIバリスタ(品質向上→売上バフとして近似)
+ * machine: 新型エスプレッソマシン・AIバリスタ・IoT(品質/効率中心)
+ * marketing: SNS運用・インフルエンサー・データ広告(入店率=来客数アップ中心。Phase G追加)
+ * staff: 接客研修・人事制度(リピート率・サービス品質中心。Phase G追加)
  */
 export const researchTree: ResearchNodeDefinition[] = [
+  // --- app ---
   {
     id: 'mobileOrderingApp',
     label: 'モバイルオーダーアプリ',
@@ -27,6 +32,38 @@ export const researchTree: ResearchNodeDefinition[] = [
     effects: { revenueMultiplier: 1.1 },
   },
   {
+    id: 'appLoyaltyIntegration',
+    label: '会員アプリ・ポイントプログラム連携',
+    description: 'アプリ内にポイントカードを統合し、会員の再来店を促す。全店舗のリピート率+10%相当。',
+    cost: 150_000,
+    branch: 'app',
+    tier: 3,
+    prerequisiteId: 'appRecommendation',
+    effects: { repeatRateBonus: 0.1 },
+  },
+  {
+    id: 'appPushMarketing',
+    label: 'プッシュ通知マーケティング',
+    description: '新メニュー・タイムセールをアプリ通知で告知し、来店のきっかけを増やす。全店舗の入店率+8%相当。',
+    cost: 250_000,
+    branch: 'app',
+    tier: 4,
+    prerequisiteId: 'appLoyaltyIntegration',
+    effects: { entryRateBonus: 0.08 },
+  },
+  {
+    id: 'appAiConcierge',
+    label: 'AIチャットボットサポート',
+    description: '注文・問い合わせをAIが24時間サポートし、顧客体験を底上げする。全店舗のリピート率+12%相当。',
+    cost: 400_000,
+    branch: 'app',
+    tier: 5,
+    prerequisiteId: 'appPushMarketing',
+    effects: { repeatRateBonus: 0.12 },
+  },
+
+  // --- eco ---
+  {
     id: 'ecoPackaging',
     label: 'エコ対応パッケージ',
     description: '生分解性カップ・包装材へ切り替える。廃棄コスト削減により全店舗の原価-3%。',
@@ -46,6 +83,38 @@ export const researchTree: ResearchNodeDefinition[] = [
     effects: { costMultiplier: 0.95 },
   },
   {
+    id: 'ecoWasteForecast',
+    label: 'フードロス削減AI予測発注',
+    description: '需要予測AIで発注量を最適化し、廃棄ロスを削減する。原価にさらに-6%。',
+    cost: 120_000,
+    branch: 'eco',
+    tier: 3,
+    prerequisiteId: 'ecoSupplyChain',
+    effects: { costMultiplier: 0.94 },
+  },
+  {
+    id: 'ecoRenewablePower',
+    label: '再生可能エネルギー電力契約',
+    description: '全店舗の電力を再エネプランへ切り替え、長期的な光熱費上昇リスクを抑える。原価にさらに-7%。',
+    cost: 220_000,
+    branch: 'eco',
+    tier: 4,
+    prerequisiteId: 'ecoWasteForecast',
+    effects: { costMultiplier: 0.93 },
+  },
+  {
+    id: 'ecoCircularCertification',
+    label: '循環型サプライチェーン認証',
+    description: '第三者認証を取得しサステナブルな調達体制をアピールする。原価-8%に加え、ブランドイメージ向上で入店率+5%相当。',
+    cost: 380_000,
+    branch: 'eco',
+    tier: 5,
+    prerequisiteId: 'ecoRenewablePower',
+    effects: { costMultiplier: 0.92, entryRateBonus: 0.05 },
+  },
+
+  // --- machine ---
+  {
     id: 'nextGenEspressoMachine',
     label: '新型エスプレッソマシン開発',
     description: '抽出精度・提供速度を向上させる新型マシンを開発する。品質向上により全店舗売上+6%。',
@@ -63,5 +132,137 @@ export const researchTree: ResearchNodeDefinition[] = [
     tier: 2,
     prerequisiteId: 'nextGenEspressoMachine',
     effects: { revenueMultiplier: 1.08 },
+  },
+  {
+    id: 'autoExtractionProfiling',
+    label: '全自動抽出プロファイリング',
+    description: '豆の産地・焙煎度ごとに抽出条件を自動最適化する。売上にさらに+5%。',
+    cost: 180_000,
+    branch: 'machine',
+    tier: 3,
+    prerequisiteId: 'baristaAiAssist',
+    effects: { revenueMultiplier: 1.05 },
+  },
+  {
+    id: 'smartInventoryIot',
+    label: 'スマート在庫管理IoT',
+    description: '在庫センサーで欠品・過剰在庫を自動検知し、無駄な仕入れを削減する。原価-4%。',
+    cost: 260_000,
+    branch: 'machine',
+    tier: 4,
+    prerequisiteId: 'autoExtractionProfiling',
+    effects: { costMultiplier: 0.96 },
+  },
+  {
+    id: 'nextGenRoaster',
+    label: '次世代焙煎機開発',
+    description: '焙煎ムラを抑える次世代機を自社開発し、看板商品の品質を大幅に引き上げる。売上にさらに+10%。',
+    cost: 450_000,
+    branch: 'machine',
+    tier: 5,
+    prerequisiteId: 'smartInventoryIot',
+    effects: { revenueMultiplier: 1.1 },
+  },
+
+  // --- marketing (Phase G追加) ---
+  {
+    id: 'snsOperationTeam',
+    label: 'SNS運用体制構築',
+    description: '公式SNSアカウントを日常的に運用し、店舗の存在を可視化する。全店舗の入店率+5%相当。',
+    cost: 25_000,
+    branch: 'marketing',
+    tier: 1,
+    effects: { entryRateBonus: 0.05 },
+  },
+  {
+    id: 'influencerProgram',
+    label: 'インフルエンサー提携プログラム',
+    description: '地域のインフルエンサーとタイアップし新規客の呼び込みを強化する。入店率にさらに+10%相当。',
+    cost: 90_000,
+    branch: 'marketing',
+    tier: 2,
+    prerequisiteId: 'snsOperationTeam',
+    effects: { entryRateBonus: 0.1 },
+  },
+  {
+    id: 'communityEventSponsorship',
+    label: '地域コミュニティイベント協賛',
+    description: '地元イベントに協賛し、認知と常連客の双方を育てる。入店率+8%・リピート率+5%相当。',
+    cost: 150_000,
+    branch: 'marketing',
+    tier: 3,
+    prerequisiteId: 'influencerProgram',
+    effects: { entryRateBonus: 0.08, repeatRateBonus: 0.05 },
+  },
+  {
+    id: 'dataDrivenAdOptimization',
+    label: 'データドリブン広告最適化',
+    description: '広告配信を購買データに基づき自動最適化し、費用対効果を最大化する。入店率にさらに+15%相当。',
+    cost: 280_000,
+    branch: 'marketing',
+    tier: 4,
+    prerequisiteId: 'communityEventSponsorship',
+    effects: { entryRateBonus: 0.15 },
+  },
+  {
+    id: 'nationalBrandCampaign',
+    label: 'ブランド全国キャンペーン',
+    description: '全国規模のブランドキャンペーンを展開する。入店率+20%・リピート率+5%相当という大きなバフを得る。',
+    cost: 500_000,
+    branch: 'marketing',
+    tier: 5,
+    prerequisiteId: 'dataDrivenAdOptimization',
+    effects: { entryRateBonus: 0.2, repeatRateBonus: 0.05 },
+  },
+
+  // --- staff (Phase G追加) ---
+  {
+    id: 'serviceTrainingStandardization',
+    label: '接客研修プログラム標準化',
+    description: '全店舗共通の接客マニュアル・研修制度を整備する。全店舗のリピート率+5%相当。',
+    cost: 20_000,
+    branch: 'staff',
+    tier: 1,
+    effects: { repeatRateBonus: 0.05 },
+  },
+  {
+    id: 'baristaCertification',
+    label: 'バリスタ技能認定制度',
+    description: '社内資格制度でバリスタの技術水準を底上げする。提供品質の向上により売上+4%。',
+    cost: 70_000,
+    branch: 'staff',
+    tier: 2,
+    prerequisiteId: 'serviceTrainingStandardization',
+    effects: { revenueMultiplier: 1.04 },
+  },
+  {
+    id: 'employeeSatisfactionProgram',
+    label: '従業員満足度向上施策',
+    description: '福利厚生・キャリア支援を拡充し、接客品質の安定を通じてリピート率をさらに+8%相当引き上げる。',
+    cost: 130_000,
+    branch: 'staff',
+    tier: 3,
+    prerequisiteId: 'baristaCertification',
+    effects: { repeatRateBonus: 0.08 },
+  },
+  {
+    id: 'shiftOptimizationAi',
+    label: 'シフト最適化AIツール',
+    description: '来店予測に基づき人員配置を最適化し、混雑時の待ち時間による機会損失を減らす。入店率+5%相当。',
+    cost: 200_000,
+    branch: 'staff',
+    tier: 4,
+    prerequisiteId: 'employeeSatisfactionProgram',
+    effects: { entryRateBonus: 0.05 },
+  },
+  {
+    id: 'nextGenHrSystem',
+    label: '次世代人事評価・報酬制度',
+    description: '成果連動の評価・報酬制度を導入し、優秀な人材の定着とサービス品質向上を両立する。リピート率+10%・売上+3%。',
+    cost: 380_000,
+    branch: 'staff',
+    tier: 5,
+    prerequisiteId: 'shiftOptimizationAi',
+    effects: { repeatRateBonus: 0.1, revenueMultiplier: 1.03 },
   },
 ];

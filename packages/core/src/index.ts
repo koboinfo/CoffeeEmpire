@@ -7,6 +7,7 @@ export * from './types/simState.js';
 export * from './types/research.js';
 export * from './types/storeEvents.js';
 export * from './types/franchise.js';
+export * from './types/startup.js';
 
 export * from './logic/financials.js';
 export * from './logic/financialDiagnostics.js';
@@ -32,6 +33,11 @@ export * from './logic/branding.js';
 export * from './logic/realEstateLogic.js';
 export * from './logic/boardLogic.js';
 export * from './logic/franchiseLogic.js';
+export * from './logic/startupInvestment.js';
+export * from './logic/landValue.js';
+export * from './logic/demandAllocation.js';
+export * from './logic/scaleEconomics.js';
+export * from './logic/alerts.js';
 
 export * from './data/cities.js';
 export * from './data/cityRent.js';
@@ -45,3 +51,4 @@ export * from './data/researchTree.js';
 export * from './data/menuCatalog.js';
 export * from './data/taxConstants.js';
 export * from './data/achievements.js';
+export * from './data/startupCatalog.js';

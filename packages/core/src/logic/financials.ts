@@ -3,7 +3,9 @@ import type { City } from '../types/store.js';
 import type { Employee } from '../types/employee.js';
 import type { Farm, GreenBeanLot } from '../types/supplyChain.js';
 import type { DepreciationSchedule, IncomeStatement, BalanceSheet, CashFlowStatement, TaxRule } from '../types/finance.js';
+import type { HeadquartersOffice } from '../types/corporate.js';
 import type { PLLineItem } from '../types/simState.js';
+import { resolvePropertyCapacity } from './propertyGenerator.js';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -30,27 +32,132 @@ export interface StoreRevenueResult {
   revenue: number;
   variableCost: number;
   customers: number;
+  /** 座席数×回転率から算出した月間の物理的な収容上限(稼働率=customers/capacity表示用)。 */
+  capacity: number;
+  /**
+   * 座席キャパシティでクランプする前の生の需要客数。customersと異なりcapacityを超えうるため、
+   * demandCustomers/capacityは「どれだけ客を取りこぼしているか」を表す真の混雑度になる
+   * (calculateUtilization参照)。
+   */
+  demandCustomers: number;
+}
+
+// カフェの回転率目安(滞在時間が長い業態のため1日2〜3回転が一般的。その中央値)。
+const TURNOVER_PER_SEAT_PER_DAY = 2.5;
+// 上の回転率目安が前提とする基準営業時間(時間)。営業時間がこれより長い/短いと回転数も比例して増減する。
+const BASE_OPERATING_HOURS_SPAN = 10;
+const DAYS_PER_TURN = 30; // 1ターン=1ヶ月の営業日数近似
+
+// data/cityRent.tsのRENT_PER_TSUBO_JPYが基準点にしている東京の実勢坪単価(¥18,000/坪/月)。
+// referencePrice(価格許容上限)を実勢賃料プレミアムに連動させる際の基準値として使う。
+const BASELINE_RENT_PER_TSUBO_JPY = 18_000;
+// 実勢賃料が基準(東京)より高い都市ほど、客が許容する価格帯も引き上げる(例: Londonの一等地は
+// 家賃が突出して高いが、実際にコーヒー1杯の価格も現地の一般的な水準よりずっと高い)。
+// 下限を1(=賃料プレミアムなしと同じ)にクランプしているため、家賃が基準より安い都市の価格上限は
+// 従来通りincomeLevelのみで決まる(rentPerMonthが小さいテストフィクスチャの挙動にも影響しない)。
+const MAX_RENT_PRICE_PREMIUM = 6;
+
+/** マーケティング施策(activeCampaigns)が稼働中の店舗の需要側計算に与える効果。呼び出し側で集計して渡す。 */
+export interface StoreMarketingEffects {
+  /** entryRateIndexへの倍率ボーナス(例: 0.2 = +20%)。SNSマーケティング等、新規客の呼び込みに効く施策向け。 */
+  entryRateBonus?: number;
+  /** satisfactionFactorへの倍率ボーナス(リピート率)。ロイヤルティ施策等、既存客の再来店に効く施策向け。 */
+  repeatRateBonus?: number;
 }
 
 /**
- * 客数 = 立地の足数 × 品質係数 × 価格係数 × 顧客満足係数。
+ * 客数 = min(需要側, 供給側)。
+ *
+ * 需要側 = 立地の足数(footTraffic) × 入店率指数(品質係数×価格係数×満足度係数)。
  * 価格係数は都市の所得水準(incomeLevel)に対する相対価格で決まる(高所得都市ほど高価格を許容)。
+ * marketingEffects.entryRateBonus/repeatRateBonusは、稼働中のマーケティング施策(SNS/ロイヤルティ等)による
+ * 入店率・リピート率の底上げをそれぞれentryRateIndex/satisfactionFactorに反映する(Phase F追加)。
+ * 需要側(=座席の物理上限に達する前)に効くため、満席の店に施策を打っても取りこぼす、という
+ * 座席キャパシティ(下記)との自然な緊張関係が生まれる。
+ *
+ * 供給側 = 座席数 × 回転率 × 営業日数 × 営業時間係数。人気店でも満席なら客を取りこぼす
+ * (Phase E追加。以前はfootTraffic側の需要だけで客数が決まり、座席という物理制約が存在しなかった)。
  */
-export function calculateStoreRevenue(store: Store, property: Property, city: City): StoreRevenueResult {
+export function calculateStoreRevenue(
+  store: Store,
+  property: Property,
+  city: City,
+  marketingEffects: StoreMarketingEffects = {}
+): StoreRevenueResult {
   const avgPrice = averageMenuPrice(store.menu);
   const avgCost = averageMenuCost(store.menu);
   const avgQuality = averageMenuQuality(store.menu);
 
   const qualityFactor = 0.5 + avgQuality / 100; // 0.5 - 1.5
-  const referencePrice = Math.max(1, city.incomeLevel) * 200;
-  const priceFactor = avgPrice > 0 ? clamp(1.5 - avgPrice / referencePrice, 0.3, 1.5) : 1;
-  const satisfactionFactor = 0.7 + (store.cumulativeCustomerSatisfaction / 100) * 0.6; // 0.7 - 1.3
 
-  const customers = Math.max(0, Math.round(property.footTraffic * qualityFactor * priceFactor * satisfactionFactor));
+  const { sizeTsubo, seats } = resolvePropertyCapacity(property);
+  const rentPerTsubo = property.rentPerMonth / Math.max(1, sizeTsubo);
+  const rentPricePremium = clamp(rentPerTsubo / BASELINE_RENT_PER_TSUBO_JPY, 1, MAX_RENT_PRICE_PREMIUM);
+  const referencePrice = Math.max(1, city.incomeLevel) * 200 * rentPricePremium;
+  const priceFactor = avgPrice > 0 ? clamp(1.5 - avgPrice / referencePrice, 0.3, 1.5) : 1;
+  const satisfactionFactor =
+    (0.7 + (store.cumulativeCustomerSatisfaction / 100) * 0.6) * (1 + (marketingEffects.repeatRateBonus ?? 0)); // 0.7 - 1.3 ×リピート施策
+  const entryRateIndex = qualityFactor * priceFactor * satisfactionFactor * (1 + (marketingEffects.entryRateBonus ?? 0));
+
+  const demandCustomers = property.footTraffic * entryRateIndex;
+
+  const operatingHoursSpan = Math.max(1, store.operatingHours.close - store.operatingHours.open);
+  const hoursFactor = clamp(operatingHoursSpan / BASE_OPERATING_HOURS_SPAN, 0.5, 1.5);
+  const capacity = seats * TURNOVER_PER_SEAT_PER_DAY * DAYS_PER_TURN * hoursFactor;
+
+  const customers = Math.max(0, Math.round(Math.min(demandCustomers, capacity)));
   const revenue = customers * avgPrice;
   const variableCost = customers * avgCost;
 
-  return { revenue, variableCost, customers };
+  return {
+    revenue,
+    variableCost,
+    customers,
+    capacity: Math.round(capacity),
+    demandCustomers: Math.max(0, Math.round(demandCustomers)),
+  };
+}
+
+/**
+ * 真の混雑度(=座席キャパシティに対する需要の比率)。customers/capacityと異なり1.0(100%)を
+ * 超えうる。取りこぼし(demandCustomers - customers)が発生しているかどうかは
+ * utilization > 1 で判定できる。capacityが0の店舗(座席未設定)はutilization=0として扱う。
+ */
+export function calculateUtilization(demandCustomers: number, capacity: number): number {
+  if (capacity <= 0) return 0;
+  return demandCustomers / capacity;
+}
+
+// 稼働率がこの値を超えると、行列・提供遅延によって満足度/士気が悪化し始める。
+const UTILIZATION_STRAIN_THRESHOLD = 0.85;
+// 上のしきい値からどれだけ超過すると悪化が頭打ちになるか(=このrange分の超過で最大値に到達)。
+const UTILIZATION_STRAIN_RANGE = 0.35;
+
+function utilizationStrain(utilization: number): number {
+  if (utilization <= UTILIZATION_STRAIN_THRESHOLD) return 0;
+  return clamp((utilization - UTILIZATION_STRAIN_THRESHOLD) / UTILIZATION_STRAIN_RANGE, 0, 1);
+}
+
+/**
+ * 稼働率から、1ターンあたりのcumulativeCustomerSatisfaction増減量を返す。
+ * 混雑(strain)が無い店舗はわずかに回復し(+0.5/ターン)、しきい値を超えると
+ * strain^1.5に比例して最大-12/ターンまで悪化する(取りこぼし=行列・提供遅延の代理指標)。
+ */
+export function calculateUtilizationSatisfactionDelta(utilization: number): number {
+  const strain = utilizationStrain(utilization);
+  if (strain === 0) return 0.5;
+  return -(strain ** 1.5) * 12;
+}
+
+/**
+ * 稼働率から、1ターンあたりの従業員motivation増減量を返す(過負荷の店舗に配属中の全従業員に適用)。
+ * 満足度と異なり余裕があっても回復はしない(接客が楽なこと自体はモチベーションを上げない)。
+ * しきい値超過時はstrain^1.5に比例して最大-8/ターンまで悪化する。
+ */
+export function calculateUtilizationMotivationDelta(utilization: number): number {
+  const strain = utilizationStrain(utilization);
+  if (strain === 0) return 0;
+  return -(strain ** 1.5) * 8;
 }
 
 const INTERIOR_TIER_BONUS = 0.04; // 什器・内装(furniture)のtier1につき客単価・客数に+4%
@@ -67,6 +174,37 @@ export function calculateInteriorQualityFactor(equipment: Equipment[]): number {
   if (furnitureTiers.length === 0) return 1;
   const bestTier = Math.max(...furnitureTiers);
   return clamp(1 + bestTier * INTERIOR_TIER_BONUS, 1, MAX_INTERIOR_FACTOR);
+}
+
+// 店舗運営の管理オーバーヘッド(給与計算・法務・在庫統括・本社間の調整コスト等)の基礎額。
+// storeCount=1でのオーバーヘッド(円/月)。
+const HQ_OVERHEAD_BASE_PER_STORE_JPY = 15_000;
+// 店舗数に対して超線形に増える指数。storeCount^1.15。10店舗で基礎額の約14.1倍、
+// 50店舗で約88.6倍、100店舗で約199倍になる(=規模の不経済。店舗を増やすほど1店舗あたりの
+// 管理コストも上がっていく)。
+const HQ_OVERHEAD_SCALING_EXPONENT = 1.15;
+// 本社の部門(HR/IT/マーケ/財務)投資が、上の管理オーバーヘッドを割り引く度合い。
+// レベル1につき8%、上限60%(部門投資を最大まで積んでも管理コストがゼロにはならない)。
+const DEPARTMENT_OVERHEAD_DISCOUNT_PER_LEVEL = 0.08;
+const MAX_DEPARTMENT_OVERHEAD_DISCOUNT = 0.6;
+
+/**
+ * 店舗数の増加に対して超線形に増える管理オーバーヘッド。本社(headquarters)の部門レベル合計が
+ * 高いほど割り引かれる(未設置なら割引0)。「本社は店舗数が少ないうちに建てても、まだオーバーヘッド
+ * 自体が小さいので割引効果が薄い。店舗数が増えてから投資すると効いてくる」という時間的な
+ * 判断を促すために、割引の適用対象(この関数)と割引率の決定要因(部門投資)を分けている。
+ */
+export function calculateManagementOverheadCost(
+  storeCount: number,
+  headquarters: HeadquartersOffice | undefined
+): number {
+  if (storeCount <= 0) return 0;
+  const base = HQ_OVERHEAD_BASE_PER_STORE_JPY * storeCount ** HQ_OVERHEAD_SCALING_EXPONENT;
+  const departmentLevels = headquarters
+    ? Object.values(headquarters.departments).reduce((sum, dept) => sum + (dept?.level ?? 0), 0)
+    : 0;
+  const discount = clamp(departmentLevels * DEPARTMENT_OVERHEAD_DISCOUNT_PER_LEVEL, 0, MAX_DEPARTMENT_OVERHEAD_DISCOUNT);
+  return Math.round(base * (1 - discount));
 }
 
 export function calculatePayroll(employees: Employee[]): number {

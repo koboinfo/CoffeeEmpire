@@ -11,6 +11,13 @@ export interface Property {
   id: string;
   cityId: string;
   size: 'kiosk' | 'small' | 'medium' | 'large' | 'flagship';
+  /**
+   * 物件の坪数(Phase E追加、賃料・座席数の物理的な起点)。未設定時は`resolvePropertyCapacity`
+   * (logic/propertyGenerator.ts)が`size`から既定値を推定する(Phase E以前のセーブ・フィクスチャ互換)。
+   */
+  sizeTsubo?: number;
+  /** 座席数(Phase E追加)。未設定時は`resolvePropertyCapacity`がsizeTsubo/sizeから算出する。 */
+  seats?: number;
   footTraffic: number;
   rentPerMonth: number;
   purchasePrice?: number; // 購入も可能な物件
@@ -32,7 +39,7 @@ export interface Equipment {
 export interface MenuItem {
   id: string;
   name: string;
-  category: 'coffee' | 'food' | 'merchandise';
+  category: 'coffee' | 'tea' | 'tapioca' | 'cake' | 'sandwich' | 'merchandise';
   basePrice: number;
   currentPrice: number; // 動的に変更可能
   costOfGoods: number; // 原材料原価(ブレンド・仕入コストから算出)

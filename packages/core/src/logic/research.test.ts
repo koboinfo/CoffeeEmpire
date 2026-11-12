@@ -32,6 +32,24 @@ const tree: ResearchNodeDefinition[] = [
     tier: 1,
     effects: { costMultiplier: 0.97 },
   },
+  {
+    id: 'marketing1',
+    label: 'Marketing Tier1',
+    description: '',
+    cost: 25_000,
+    branch: 'marketing',
+    tier: 1,
+    effects: { entryRateBonus: 0.05 },
+  },
+  {
+    id: 'staff1',
+    label: 'Staff Tier1',
+    description: '',
+    cost: 20_000,
+    branch: 'staff',
+    tier: 1,
+    effects: { repeatRateBonus: 0.05 },
+  },
 ];
 
 test('canUnlockResearchNode: 前提条件がなければアンロック可能', () => {
@@ -71,4 +89,16 @@ test('calculateResearchEffects: revenue系とcost系は独立して集計され�
   const effects = calculateResearchEffects(['app1', 'eco1'], tree);
   assert.equal(effects.revenueMultiplier, 1.05);
   assert.equal(effects.costMultiplier, 0.97);
+});
+
+test('calculateResearchEffects: 何もアンロックしていなければentryRateBonus/repeatRateBonusは0', () => {
+  const effects = calculateResearchEffects([], tree);
+  assert.equal(effects.entryRateBonus, 0);
+  assert.equal(effects.repeatRateBonus, 0);
+});
+
+test('calculateResearchEffects: entryRateBonus/repeatRateBonusは乗算ではなく加算で積み上がる', () => {
+  const effects = calculateResearchEffects(['marketing1', 'staff1'], tree);
+  assert.equal(effects.entryRateBonus, 0.05);
+  assert.equal(effects.repeatRateBonus, 0.05);
 });

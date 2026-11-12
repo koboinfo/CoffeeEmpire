@@ -18,6 +18,10 @@ import {
   calculateEquipmentDepreciation,
   calculateStoresDepreciationAndNetBookValue,
   calculateInventoryValue,
+  calculateUtilization,
+  calculateUtilizationSatisfactionDelta,
+  calculateUtilizationMotivationDelta,
+  calculateManagementOverheadCost,
 } from './financials.js';
 
 function makeMenuItem(overrides: Partial<MenuItem> = {}): MenuItem {
@@ -95,6 +99,38 @@ test('calculateStoreRevenue: メニューが空なら客数・売上ともに0',
   assert.equal(result.variableCost, 0);
 });
 
+test('calculateStoreRevenue: entryRateBonusは需要側を増やし客数を増加させる(座席キャパシティ未満の範囲)', () => {
+  const store = makeStore();
+  const property = makeProperty({ footTraffic: 100, seats: 100 }); // 需要側が座席キャパシティに対して十分小さい設定
+  const city = makeCity();
+
+  const base = calculateStoreRevenue(store, property, city);
+  const boosted = calculateStoreRevenue(store, property, city, { entryRateBonus: 0.2 });
+
+  assert.ok(boosted.customers > base.customers);
+});
+
+test('calculateStoreRevenue: repeatRateBonusはsatisfactionFactor経由で客数を増加させる(座席キャパシティ未満の範囲)', () => {
+  const store = makeStore();
+  const property = makeProperty({ footTraffic: 100, seats: 100 });
+  const city = makeCity();
+
+  const base = calculateStoreRevenue(store, property, city);
+  const boosted = calculateStoreRevenue(store, property, city, { repeatRateBonus: 0.15 });
+
+  assert.ok(boosted.customers > base.customers);
+});
+
+test('calculateStoreRevenue: entryRateBonusで需要が座席キャパシティを超えても客数はcapacityで頭打ちになる', () => {
+  const store = makeStore();
+  const property = makeProperty({ footTraffic: 10_000, seats: 5 }); // 供給側が極端に小さい設定
+  const city = makeCity();
+
+  const boosted = calculateStoreRevenue(store, property, city, { entryRateBonus: 0.5 });
+
+  assert.equal(boosted.customers, boosted.capacity);
+});
+
 test('calculateStoreRevenue: 高価格は低所得都市で客数を減らす', () => {
   const property = makeProperty();
   const poorCity = makeCity({ incomeLevel: 1 });
@@ -105,6 +141,97 @@ test('calculateStoreRevenue: 高価格は低所得都市で客数を減らす', 
   const richResult = calculateStoreRevenue(store, property, richCity);
 
   assert.ok(poorResult.customers < richResult.customers);
+});
+
+test('calculateStoreRevenue: demandCustomersはcapacityを超えうる(customersはcapacityで頭打ち)', () => {
+  const store = makeStore();
+  const property = makeProperty({ footTraffic: 10_000, seats: 5 }); // 供給側が極端に小さい設定
+  const city = makeCity();
+
+  const result = calculateStoreRevenue(store, property, city);
+
+  assert.equal(result.customers, result.capacity);
+  assert.ok(result.demandCustomers > result.capacity);
+});
+
+test('calculateUtilization: capacityが0の店舗は0を返す(座席未設定でゼロ除算しない)', () => {
+  assert.equal(calculateUtilization(100, 0), 0);
+});
+
+test('calculateUtilization: demandCustomers/capacityで、1.0を超えうる', () => {
+  assert.equal(calculateUtilization(150, 100), 1.5);
+});
+
+test('calculateUtilizationSatisfactionDelta: 稼働率85%以下ではわずかに回復する', () => {
+  assert.equal(calculateUtilizationSatisfactionDelta(0.5), 0.5);
+  assert.equal(calculateUtilizationSatisfactionDelta(0.85), 0.5);
+});
+
+test('calculateUtilizationSatisfactionDelta: 稼働率85%超で悪化し、超過が大きいほど悪化幅が広がる', () => {
+  const mild = calculateUtilizationSatisfactionDelta(1.0); // 85%から興過35%分のうち約43%
+  const severe = calculateUtilizationSatisfactionDelta(1.2); // 85%+35%(=しきい値の頭打ち圏)
+
+  assert.ok(mild < 0);
+  assert.ok(severe < mild); // 過負荷が大きいほど悪化幅も大きい
+  assert.ok(severe >= -12); // 最大悪化幅を超えない
+});
+
+test('calculateUtilizationMotivationDelta: 稼働率85%以下では変化しない(満足度と異なり回復もしない)', () => {
+  assert.equal(calculateUtilizationMotivationDelta(0.5), 0);
+  assert.equal(calculateUtilizationMotivationDelta(0.85), 0);
+});
+
+test('calculateUtilizationMotivationDelta: 稼働率85%超で悪化する', () => {
+  const delta = calculateUtilizationMotivationDelta(1.2);
+  assert.ok(delta < 0);
+  assert.ok(delta >= -8); // 最大悪化幅を超えない
+});
+
+test('calculateManagementOverheadCost: 店舗0件なら0', () => {
+  assert.equal(calculateManagementOverheadCost(0, undefined), 0);
+});
+
+test('calculateManagementOverheadCost: 本社未設置でもstoreCount^1.15で超線形に増える(割引なし)', () => {
+  const at1 = calculateManagementOverheadCost(1, undefined);
+  const at10 = calculateManagementOverheadCost(10, undefined);
+  const at50 = calculateManagementOverheadCost(50, undefined);
+
+  assert.equal(at1, 15_000);
+  // 店舗数が10倍(1→10)になると、コストは10倍(=15万)ではなく約14.1倍(超線形)になる
+  assert.ok(at10 > at1 * 10);
+  assert.ok(at10 < at1 * 15);
+  // 店舗数が50倍(1→50)になると、コストは約88.6倍になる
+  assert.ok(at50 > at1 * 80);
+  assert.ok(at50 < at1 * 100);
+});
+
+test('calculateManagementOverheadCost: 本社の部門投資が高いほど割り引かれる(上限60%)', () => {
+  const headquartersNoDept = { id: 'hq-1', cityId: 'city-1', sizeTier: 1, rentPerMonth: 100_000, departments: {} };
+  const headquartersFewDept = {
+    id: 'hq-1',
+    cityId: 'city-1',
+    sizeTier: 1,
+    rentPerMonth: 100_000,
+    departments: { hr: { level: 2 } },
+  };
+  const headquartersMaxDept = {
+    id: 'hq-1',
+    cityId: 'city-1',
+    sizeTier: 1,
+    rentPerMonth: 100_000,
+    departments: { hr: { level: 10 }, it: { level: 10 }, marketing: { level: 10 }, finance: { level: 10 } },
+  };
+
+  const noDiscount = calculateManagementOverheadCost(20, headquartersNoDept);
+  const someDiscount = calculateManagementOverheadCost(20, headquartersFewDept);
+  const maxDiscount = calculateManagementOverheadCost(20, headquartersMaxDept);
+  const uncapped = calculateManagementOverheadCost(20, undefined);
+
+  assert.equal(noDiscount, uncapped); // 本社があっても部門投資が無ければ未設置と同額
+  assert.ok(someDiscount < noDiscount);
+  assert.ok(maxDiscount < someDiscount);
+  // 割引上限60%を下回らない(部門投資を積んでも管理コストがゼロにはならない)
+  assert.ok(maxDiscount >= Math.round(uncapped * 0.4) - 1);
 });
 
 test('calculatePayroll: 給与の単純合計', () => {
@@ -280,8 +407,8 @@ test('calculateStoresDepreciationAndNetBookValue: 全店舗の設備を合算す
 
 test('calculateInventoryValue: 生豆在庫kg×農園単価の合計', () => {
   const farms: Farm[] = [
-    { id: 'farm-a', country: 'brazil', qGrade: 78, pricePerKg: 6.5, availableKgPerMonth: 5000, reliability: 85 },
-    { id: 'farm-b', country: 'ethiopia', qGrade: 88, pricePerKg: 12.0, availableKgPerMonth: 1200, reliability: 65 },
+    { id: 'farm-a', country: 'brazil', qGrade: 78, flavor: { aroma: 55, acidity: 35, bitterness: 55 }, pricePerKg: 6.5, availableKgPerMonth: 5000, reliability: 85 },
+    { id: 'farm-b', country: 'ethiopia', qGrade: 88, flavor: { aroma: 90, acidity: 85, bitterness: 25 }, pricePerKg: 12.0, availableKgPerMonth: 1200, reliability: 65 },
   ];
   const inventory: GreenBeanLot[] = [
     { id: 'lot-1', farmId: 'farm-a', qGrade: 78, kg: 100, pricePerKg: 6.5, purchasedAtTurn: 0 },

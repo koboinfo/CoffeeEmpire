@@ -17,6 +17,8 @@ import {
   applyExecutiveAutomation,
   calculateOwnershipComposition,
   integrateAcquisition,
+  calculatePlayerCityShareRatio,
+  wouldExceedAntitrustCap,
 } from './corporate.js';
 import type { StockListing } from '../types/corporate.js';
 
@@ -105,6 +107,30 @@ test('calculateMarketShareRatio: 自社と競合の評価額比率を返す', ()
 
 test('calculateMarketShareRatio: 合計0なら0を返す', () => {
   assert.equal(calculateMarketShareRatio(0, []), 0);
+});
+
+test('calculatePlayerCityShareRatio: 自社/(自社+競合)の店舗数比率を返す', () => {
+  assert.equal(calculatePlayerCityShareRatio(3, 1), 0.75);
+});
+
+test('calculatePlayerCityShareRatio: 都市に店舗が1つも無ければ0を返す', () => {
+  assert.equal(calculatePlayerCityShareRatio(0, 0), 0);
+});
+
+test('wouldExceedAntitrustCap: 都市の店舗総数が少ないうち(5店未満)は規制対象外', () => {
+  // 競合0・自社0の都市に1店舗目を出すと理論上シェア100%だが、まだ「市場」と呼べる規模ではないためブロックしない
+  assert.equal(wouldExceedAntitrustCap(0, 0), false);
+  assert.equal(wouldExceedAntitrustCap(3, 0), false); // 出店後合計4店 < 5
+});
+
+test('wouldExceedAntitrustCap: 都市の店舗総数が規制対象規模で、出店後シェアが80%を超えるならtrue', () => {
+  // 自社4+競合1(計5) → 出店後は自社5/計6 ≈ 83.3% > 80%
+  assert.equal(wouldExceedAntitrustCap(4, 1), true);
+});
+
+test('wouldExceedAntitrustCap: 出店後シェアが80%以下ならfalse', () => {
+  // 自社2+競合3(計5) → 出店後は自社3/計6 = 50%
+  assert.equal(wouldExceedAntitrustCap(2, 3), false);
 });
 
 test('calculateDynamicStockPrice: 黒字・高シェアなら株価が上昇する', () => {

@@ -52,7 +52,7 @@ export interface Loan {
 
 export interface MarketingCampaign {
   id: string;
-  type: 'localAd' | 'digitalAd' | 'brandSponsorship' | 'loyaltyProgram';
+  type: 'localAd' | 'digitalAd' | 'brandSponsorship' | 'loyaltyProgram' | 'snsMarketing';
   budget: number;
   durationTurns: number;
   awarenessEffect: number; // 認知度ステータスへの効果量
@@ -62,6 +62,17 @@ export interface MarketingCampaign {
    * (グローバルなstatuses.brandAwarenessには影響しない)。未設定なら従来通りグローバル扱い(後方互換)。
    */
   cityId?: string;
+  /**
+   * Phase F追加のadditiveフィールド。稼働中、対象店舗のentryRateIndex(calculateStoreRevenue)に
+   * 直接効く倍率ボーナス(例: 0.2 = +20%)。SNSマーケティング等、新規客の呼び込みに効く施策向け。
+   * 未設定は0扱い(後方互換)。
+   */
+  entryRateBonus?: number;
+  /**
+   * Phase F追加のadditiveフィールド。稼働中、対象店舗のsatisfactionFactorに効く倍率ボーナス。
+   * ロイヤルティ施策等、既存客の再来店(リピート率)を底上げする施策向け。未設定は0扱い(後方互換)。
+   */
+  repeatRateBonus?: number;
 }
 
 export interface StockListing {
@@ -109,4 +120,10 @@ export interface RealEstateInvestment {
   purchasePrice: number;
   monthlyRentalIncome: number;
   purchasedAtTurn: number;
+  /**
+   * 地価(円建て)。年1回(turnEngine.ts、決算と同じ12ターン周期)、logic/landValue.tsの
+   * updateLandValueAnnualで更新される。未設定(旧セーブ含む)はpurchasePriceを初期値として扱う。
+   * purchasePrice/monthlyRentalIncome(賃料計算)には影響しない、キャピタルゲイン追跡専用の値。
+   */
+  landValue?: number;
 }

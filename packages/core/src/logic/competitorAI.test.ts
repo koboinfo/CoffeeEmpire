@@ -45,6 +45,18 @@ test('decideCompetitorAction: 資金潤沢かつrngが閾値未満なら出店�
   }
 });
 
+test('decideCompetitorAction: playerGrowthRateが高いと、通常なら発生しないrng値でも出店拡大する(ラバーバンド)', () => {
+  const competitor = makeCompetitor({ valuation: 1_500_000, cash: 500_000 });
+  // rng=0.32は素のEXPANSION_PROBABILITY(0.3)未満ではないため、本来はholdPriceになるはず。
+  const withoutGrowth = decideCompetitorAction(competitor, { ...cityContext }, () => 0.32);
+  assert.equal(withoutGrowth.type, 'holdPrice');
+
+  // playerGrowthRate=1.0(直近で店舗数が倍増)なら、有効な出店拡大確率が0.3×1.5=0.45まで
+  // 引き上げられ、同じrng=0.32でも出店拡大が発生する。
+  const withGrowth = decideCompetitorAction(competitor, { ...cityContext, playerGrowthRate: 1.0 }, () => 0.32);
+  assert.equal(withGrowth.type, 'expand');
+});
+
 test('decideCompetitorAction: playerStoresByCityがあれば自社が強い都市が出店拡大先に選ばれやすい', () => {
   const competitor = makeCompetitor({ valuation: 1_500_000, cash: 500_000 });
   // 1回目のrng()は出店拡大の発生判定(<0.3で発生)、2回目は都市の加重抽選に使われる。

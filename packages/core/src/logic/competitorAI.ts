@@ -1,10 +1,22 @@
 import type { CompetitorBrand } from '../types/corporate.js';
+import { calculateCompetitorRubberBandGrowthRate } from './scaleEconomics.js';
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 export interface CompetitorMarketContext {
   playerAvgQuality: number; // 0-100
   playerAvgPrice: number;
   cityIds: string[]; // 出店拡大(expand)時の候補都市
   playerStoresByCity?: Record<string, number>; // 自社の都市別出店数。指定時は自社が強い都市ほど出店拡大の重みを上げる
+  /**
+   * 自社の直近の出店ペース(0以上、店舗数ベースの成長率)。指定時、競合の出店拡大確率を
+   * ラバーバンド(calculateCompetitorRubberBandGrowthRate)で自社成長率の0.4〜0.6倍まで
+   * 追随して引き上げる(「プレイヤーの成長を無効化しない」範囲での抵抗。レポート§6-1)。
+   * 未指定なら従来通り固定確率(EXPANSION_PROBABILITY)のまま。
+   */
+  playerGrowthRate?: number;
 }
 
 /**
@@ -64,7 +76,12 @@ export function decideCompetitorAction(
     return { type: 'priceHike', magnitude: 0.03 };
   }
 
-  if (competitor.valuation > GROWTH_VALUATION_THRESHOLD && rng() < EXPANSION_PROBABILITY) {
+  // プレイヤーが急成長している局面では、競合の出店拡大確率をラバーバンドで引き上げる
+  // (自社成長率の0.4〜0.6倍が上限。プレイヤーの成長を無効化しない範囲での抵抗)。
+  const rubberBandBoost = calculateCompetitorRubberBandGrowthRate(context.playerGrowthRate ?? 0);
+  const effectiveExpansionProbability = clamp(EXPANSION_PROBABILITY * (1 + rubberBandBoost), 0, 0.9);
+
+  if (competitor.valuation > GROWTH_VALUATION_THRESHOLD && rng() < effectiveExpansionProbability) {
     const investedAmount = competitor.valuation * 0.02;
     if (context.cityIds.length > 0 && competitor.cash >= investedAmount) {
       const cityId = pickExpansionCity(context.cityIds, context.playerStoresByCity, rng);

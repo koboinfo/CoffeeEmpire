@@ -123,6 +123,34 @@ export function calculateMarketShareRatio(ownValuation: number, competitorValuat
   return clamp(ownValuation / total, 0, 1);
 }
 
+// 独占禁止規制: 1都市内でのシェアがこれを超えることを許さない(超えそうな新規出店をブロックする)。
+export const ANTITRUST_MARKET_SHARE_CAP = 0.8;
+// 都市の店舗総数(自社+競合)がこれ未満の場合は規制の対象外とする。新規参入初期の
+// 「競合がまだ1店も無い都市の1店舗目」がシェア100%として即ブロックされる理不尽を避けるため
+// (=独占禁止規制は「市場」と呼べる規模になって初めて意味を持つ)。
+const ANTITRUST_MIN_CITY_STORES = 5;
+
+/**
+ * 1都市内での自社シェア(0-1)。playerStoreCount/(playerStoreCount+competitorStoreCount)。
+ * calculateMarketShareRatio(全社valuationベースの近似)とは別軸で、都市単位の店舗数で見る。
+ */
+export function calculatePlayerCityShareRatio(playerStoreCount: number, competitorStoreCount: number): number {
+  const total = playerStoreCount + competitorStoreCount;
+  if (total <= 0) return 0;
+  return clamp(playerStoreCount / total, 0, 1);
+}
+
+/**
+ * この都市に自社店舗を1店追加した場合、独占禁止規制の上限(80%)を超えるかどうかを判定する。
+ * 出店確定前のガード(NewStoreScreen等)で使う想定。
+ */
+export function wouldExceedAntitrustCap(playerStoreCount: number, competitorStoreCount: number): boolean {
+  const totalAfterNewStore = playerStoreCount + competitorStoreCount + 1;
+  if (totalAfterNewStore < ANTITRUST_MIN_CITY_STORES) return false;
+  const shareAfterNewStore = (playerStoreCount + 1) / totalAfterNewStore;
+  return shareAfterNewStore > ANTITRUST_MARKET_SHARE_CAP;
+}
+
 export interface StockPriceInputs {
   revenue: number;
   netIncome: number;
@@ -232,6 +260,8 @@ export function applyExecutiveAutomation(
           durationTurns: cheapestPreset.durationTurns,
           awarenessEffect: cheapestPreset.awarenessEffect,
           startedAtTurn: state.turn,
+          ...(cheapestPreset.entryRateBonus !== undefined ? { entryRateBonus: cheapestPreset.entryRateBonus } : {}),
+          ...(cheapestPreset.repeatRateBonus !== undefined ? { repeatRateBonus: cheapestPreset.repeatRateBonus } : {}),
         },
       ];
     }
