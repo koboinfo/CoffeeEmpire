@@ -43,6 +43,8 @@ export function StoreDetailScreen() {
   const trainEmployee = useGameStore((s) => s.trainEmployee);
   const setOperatingHours = useGameStore((s) => s.setOperatingHours);
   const applyRoastedBatchToMenuItem = useGameStore((s) => s.applyRoastedBatchToMenuItem);
+  const unlockedMenuItemIds = useGameStore((s) => s.state.unlockedMenuItemIds);
+  const addMenuItemToStore = useGameStore((s) => s.addMenuItemToStore);
 
   if (!store) {
     return (
@@ -77,6 +79,8 @@ export function StoreDetailScreen() {
           setMenuItemPrice={setMenuItemPrice}
           applyRoastedBatchToMenuItem={applyRoastedBatchToMenuItem}
           setOperatingHours={setOperatingHours}
+          unlockedMenuItemIds={unlockedMenuItemIds ?? []}
+          addMenuItemToStore={addMenuItemToStore}
         />
       ) : null}
       {activeTab === 'design' ? (

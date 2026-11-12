@@ -3,12 +3,14 @@ import {
   calculateAcquisitionPrice,
   createLoan,
   integrateAcquisition,
+  investInStartup as createStartupInvestment,
   type Acquisition,
   type City,
   type CompetitorBrand,
   type FranchiseContract,
   type Property,
   type RealEstateInvestment,
+  type Startup,
 } from '@coffee-empire/core';
 import type { GameStore } from '../gameStore';
 
@@ -31,6 +33,7 @@ export interface FinanceSlice {
   acquireCompetitor: (competitorId: string) => void;
   investInRealEstate: (property: Property, evaluation: RealEstateEvaluation) => void;
   sellRealEstate: (investmentId: string) => void;
+  investInStartup: (startup: Startup, amount: number) => void;
   takeLoan: (principal: number, annualInterestRate: number, termTurns: number) => void;
   buyBackShares: (shareCount: number) => void;
   /** 上場後の追加株式発行(公募増資)。既存株主の持株比率が希薄化する代わりに資金調達できる。Phase B追加。 */
@@ -110,6 +113,7 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
       purchasePrice: evaluation.purchasePrice,
       monthlyRentalIncome: evaluation.monthlyRentalIncome,
       purchasedAtTurn: state.turn,
+      landValue: evaluation.purchasePrice, // 初期値は購入額(以後advanceTurnの年次更新で変動する)
     };
 
     set({
@@ -121,14 +125,34 @@ export const createFinanceSlice: StateCreator<GameStore, [], [], FinanceSlice> =
     });
   },
 
-  // 不動産投資の売却: 売却損益(賃料収入の蓄積等)は損益計算書に反映しない既知の簡略化。
-  // 取引コスト分として購入額の10%を差し引いた額を即座にcashへ加算する。
+  // VC投資: 出資1件を実行する。イグジット(exited)時の払戻・破綻(failed)時の全損判定は
+  // advanceTurn(turnEngine.ts、四半期ごと)側で自動処理されるため、ここでは出資の記録のみ行う。
+  investInStartup: (startup, amount) => {
+    const { state } = get();
+    if (state.cash < amount || amount <= 0) return;
+
+    const investment = createStartupInvestment(startup, amount, state.turn);
+
+    set({
+      state: {
+        ...state,
+        cash: state.cash - amount,
+        vcPortfolio: [...(state.vcPortfolio ?? []), investment],
+      },
+    });
+  },
+
+  // 不動産投資の売却: 売却損益は損益計算書に反映しない既知の簡略化。
+  // 地価(landValue、年次更新される)から取引コスト10%を差し引いた額を即座にcashへ加算する
+  // (地価が購入時より上がっていればキャピタルゲインとして反映される)。
   sellRealEstate: (investmentId) => {
     const { state } = get();
     const investment = state.ownedRealEstate.find((entry) => entry.id === investmentId);
     if (!investment) return;
 
-    const refund = Math.round(investment.purchasePrice * 0.9);
+    // 売却額は地価(landValue、年次更新される)ベース。未設定(旧セーブ)ならpurchasePriceにフォールバックする。
+    // 取引コスト分として10%を差し引く点はこれまでと同じ。
+    const refund = Math.round((investment.landValue ?? investment.purchasePrice) * 0.9);
     set({
       state: {
         ...state,

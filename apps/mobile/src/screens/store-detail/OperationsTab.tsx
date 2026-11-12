@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import type { RoastBatch, Store } from '@coffee-empire/core';
+import { menuCatalog, type RoastBatch, type Store } from '@coffee-empire/core';
+import { AppButton } from '../../components/AppButton';
 import { CalendarIcon, ChartIcon, GearIcon } from '../../icons';
 import { colors } from '../../theme/theme';
 
@@ -59,6 +60,8 @@ interface OperationsTabProps {
   setMenuItemPrice: (storeId: string, menuItemId: string, price: number) => void;
   applyRoastedBatchToMenuItem: (storeId: string, menuItemId: string, batchId: string) => void;
   setOperatingHours: (storeId: string, open: number, close: number) => void;
+  unlockedMenuItemIds: string[];
+  addMenuItemToStore: (storeId: string, templateId: string) => void;
 }
 
 export function OperationsTab({
@@ -67,7 +70,14 @@ export function OperationsTab({
   setMenuItemPrice,
   applyRoastedBatchToMenuItem,
   setOperatingHours,
+  unlockedMenuItemIds,
+  addMenuItemToStore,
 }: OperationsTabProps) {
+  const addableTemplates = menuCatalog.filter(
+    (template) =>
+      unlockedMenuItemIds.includes(template.templateId) &&
+      !store.menu.some((item) => item.id.startsWith(`${template.templateId}-`))
+  );
   const [pickingBatchForMenuItemId, setPickingBatchForMenuItemId] = useState<string | null>(null);
   const { open, close } = store.operatingHours;
   const hoursOpen = Math.max(0, close - open);
@@ -157,6 +167,23 @@ export function OperationsTab({
           );
         })}
       </View>
+
+      {addableTemplates.length > 0 ? (
+        <View className="gap-sm rounded-md border border-border bg-surface p-md">
+          <SectionLabel icon={<GearIcon size={15} color={colors.roastLight} />} label="開発済みメニューを追加" />
+          {addableTemplates.map((template, index) => (
+            <View key={template.templateId} className={`flex-row items-center justify-between py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+              <View className="flex-1">
+                <Text className="text-sm text-text-primary">{template.name}</Text>
+                <Text className="text-xs text-text-muted">
+                  {formatCurrency(template.basePrice)} ・ 品質{template.qualityScore}
+                </Text>
+              </View>
+              <AppButton label="追加" icon="add" variant="secondary" onPress={() => addMenuItemToStore(store.id, template.templateId)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

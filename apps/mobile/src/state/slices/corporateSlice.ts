@@ -94,6 +94,8 @@ export const createCorporateSlice: StateCreator<GameStore, [], [], CorporateSlic
       awarenessEffect: preset.awarenessEffect,
       startedAtTurn: state.turn,
       ...(cityId ? { cityId } : {}),
+      ...(preset.entryRateBonus !== undefined ? { entryRateBonus: preset.entryRateBonus } : {}),
+      ...(preset.repeatRateBonus !== undefined ? { repeatRateBonus: preset.repeatRateBonus } : {}),
     };
 
     if (cityId) {

@@ -19,6 +19,7 @@ function formatCurrency(amount: number): string {
 export function RealEstateScreen() {
   const state = useGameStore((s) => s.state);
   const investInRealEstate = useGameStore((s) => s.investInRealEstate);
+  const sellRealEstate = useGameStore((s) => s.sellRealEstate);
 
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
@@ -39,7 +40,33 @@ export function RealEstateScreen() {
       <FlatList
         style={styles.container}
         contentContainerStyle={styles.content}
-        ListHeaderComponent={<Text style={styles.sectionLabel}>保有中の不動産: {ownedCount}件</Text>}
+        ListHeaderComponent={
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.sectionLabel}>保有中の不動産: {ownedCount}件</Text>
+            {state.ownedRealEstate.map((investment) => {
+              const landValue = investment.landValue ?? investment.purchasePrice;
+              const unrealizedGain = landValue - investment.purchasePrice;
+              return (
+                <Card key={investment.id}>
+                  <Text style={styles.cityName}>月次賃料収入 {formatCurrency(investment.monthlyRentalIncome)}</Text>
+                  <Text style={styles.cityMeta}>
+                    購入額 {formatCurrency(investment.purchasePrice)} ・ 現在の地価 {formatCurrency(landValue)}
+                  </Text>
+                  <Text style={[styles.cityMeta, unrealizedGain >= 0 ? styles.gainPositive : styles.gainNegative]}>
+                    含み損益 {unrealizedGain >= 0 ? '+' : ''}
+                    {formatCurrency(unrealizedGain)}
+                  </Text>
+                  <AppButton
+                    label={`売却する(${formatCurrency(Math.round(landValue * 0.9))})`}
+                    icon="cash-outline"
+                    variant="secondary"
+                    onPress={() => sellRealEstate(investment.id)}
+                  />
+                </Card>
+              );
+            })}
+          </View>
+        }
         data={cities}
         keyExtractor={(city) => city.id}
         renderItem={({ item: city }) => (
@@ -94,4 +121,6 @@ const styles = StyleSheet.create({
   cityMeta: { fontSize: 13, color: colors.textSecondary },
   backButton: { alignItems: 'center', padding: spacing.md },
   backButtonText: { color: colors.roast, fontWeight: '600' },
+  gainPositive: { color: colors.positive, fontWeight: '600' },
+  gainNegative: { color: colors.negative, fontWeight: '600' },
 });

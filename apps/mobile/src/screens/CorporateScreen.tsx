@@ -15,6 +15,7 @@ import {
   calculateLoanOfferRate,
   calculateMarketShareRatio,
   calculateOwnershipComposition,
+  calculatePortfolioValue,
   canEstablishHolding,
   canIncorporate,
   canUnlockResearchNode,
@@ -26,12 +27,15 @@ import {
   HOLDING_MIN_STORE_COUNT,
   INCORPORATION_COST,
   marketingCampaignPresets,
+  menuCatalog,
   researchTree,
   type DepartmentType,
   type EntityType,
   type ExecutiveTitle,
   type MarketingCampaignPreset,
   type ResearchBranch,
+  type StartupSector,
+  type StartupStage,
 } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import { AppButton } from '../components/AppButton';
@@ -78,7 +82,28 @@ const LOAN_PRESETS = [
 
 const HQ_UPGRADE_COST_PER_TIER = 800_000;
 
-type DepartmentTabKey = 'org' | 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research' | 'achievements';
+// VC投資: 1クリックあたりの固定出資額(既存のacquireCompetitor等と同じ「1アクション=1確定額」の設計)。
+const STARTUP_INVESTMENT_AMOUNT = 2_000_000;
+
+const STARTUP_SECTOR_LABELS: Record<StartupSector, string> = {
+  coffeeTech: 'コーヒーテック(シナジー)',
+  retailSaas: '小売SaaS(シナジー)',
+  logistics: '物流(シナジー)',
+  fintech: 'フィンテック',
+  consumerApp: '消費者向けアプリ',
+  other: 'その他',
+};
+
+const STARTUP_STAGE_LABELS: Record<StartupStage, string> = {
+  seed: 'シード',
+  seriesA: 'シリーズA',
+  seriesB: 'シリーズB',
+  growth: 'グロース',
+  exited: 'イグジット済み',
+  failed: '破綻',
+};
+
+type DepartmentTabKey = 'org' | 'hq' | 'exec' | 'marketing' | 'ipo' | 'loans' | 'ma' | 'research' | 'menu' | 'achievements';
 
 const TABS: { key: DepartmentTabKey; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'org', label: '組織', icon: 'ribbon' },
@@ -89,6 +114,7 @@ const TABS: { key: DepartmentTabKey; label: string; icon: keyof typeof Ionicons.
   { key: 'loans', label: '融資', icon: 'cash' },
   { key: 'ma', label: 'M&A', icon: 'git-merge' },
   { key: 'research', label: '研究', icon: 'flask' },
+  { key: 'menu', label: 'メニュー開発', icon: 'restaurant' },
   { key: 'achievements', label: '実績', icon: 'trophy' },
 ];
 
@@ -96,13 +122,27 @@ const RESEARCH_BRANCH_LABELS: Record<ResearchBranch, string> = {
   app: 'モバイル&自社アプリ',
   eco: 'エコ&サプライチェーン',
   machine: 'マシン&品質',
+  marketing: 'SNS&集客',
+  staff: '接客&人材',
 };
 const RESEARCH_BRANCH_ICONS: Record<ResearchBranch, keyof typeof Ionicons.glyphMap> = {
   app: 'phone-portrait',
   eco: 'leaf',
   machine: 'cafe',
+  marketing: 'megaphone',
+  staff: 'people',
 };
-const RESEARCH_BRANCHES: ResearchBranch[] = ['app', 'eco', 'machine'];
+const RESEARCH_BRANCHES: ResearchBranch[] = ['app', 'eco', 'machine', 'marketing', 'staff'];
+
+const MENU_CATEGORY_LABELS: Record<string, string> = {
+  coffee: 'コーヒー',
+  tea: '紅茶・お茶',
+  tapioca: 'タピオカ',
+  cake: 'ケーキ',
+  sandwich: 'サンドイッチ・軽食',
+  merchandise: '物販',
+};
+const MENU_CATEGORIES = ['coffee', 'tea', 'tapioca', 'cake', 'sandwich', 'merchandise'] as const;
 
 const ENTITY_STAGE_META: Record<EntityType, { label: string; description: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   soleProprietorship: {
@@ -185,9 +225,11 @@ export function CorporateScreen() {
   const setDividendPerShare = useGameStore((s) => s.setDividendPerShare);
   const buyBackShares = useGameStore((s) => s.buyBackShares);
   const acquireCompetitor = useGameStore((s) => s.acquireCompetitor);
+  const investInStartup = useGameStore((s) => s.investInStartup);
   const takeLoan = useGameStore((s) => s.takeLoan);
   const setExecutiveAutomation = useGameStore((s) => s.setExecutiveAutomation);
   const unlockResearchNode = useGameStore((s) => s.unlockResearchNode);
+  const unlockMenuItem = useGameStore((s) => s.unlockMenuItem);
   const setEmployeeEquityCompensation = useGameStore((s) => s.setEmployeeEquityCompensation);
   const issueAdditionalShares = useGameStore((s) => s.issueAdditionalShares);
 
@@ -656,7 +698,7 @@ export function CorporateScreen() {
         <CardBox>
           <SectionLabel icon="rocket" label="マーケティングキャンペーン(段階別)" />
           <Text className="text-xs text-text-secondary">
-            地域広告(ポスター等) → デジタル広告 → ブランドスポンサー(TV/大型) → ロイヤルティ施策、の順に効果・予算とも大きくなる。上で選択中の都市を対象に起動する。
+            地域広告(ポスター等) → デジタル広告 → ブランドスポンサー(TV/大型)は認知度アップ。SNSマーケティングは安価・短期間だが入店率に直接効き、ロイヤルティ施策は長期でリピート率を底上げする。上で選択中の都市を対象に起動する。
           </Text>
           {state.activeCampaigns.map((campaign) => {
             const cityName = campaign.cityId ? cities.find((c) => c.id === campaign.cityId)?.name : null;
@@ -670,7 +712,14 @@ export function CorporateScreen() {
           })}
           {marketingCampaignPresets.map((preset: MarketingCampaignPreset, index) => (
             <CatalogRow key={preset.type} index={index} onPress={() => launchCampaign(preset, marketingCityId)}>
-              <Text className="text-sm text-text-primary">{preset.label}</Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text className="text-sm text-text-primary">{preset.label}</Text>
+                <Text className="text-[11px] text-text-secondary">
+                  認知度+{preset.awarenessEffect}
+                  {preset.entryRateBonus ? ` ・入店率+${Math.round(preset.entryRateBonus * 100)}%` : ''}
+                  {preset.repeatRateBonus ? ` ・リピート率+${Math.round(preset.repeatRateBonus * 100)}%` : ''}
+                </Text>
+              </View>
               <Text className="text-sm font-semibold text-text-primary">
                 {formatCurrency(preset.budget)}/月 x {preset.durationTurns}ターン
               </Text>
@@ -902,6 +951,56 @@ export function CorporateScreen() {
           </CardBox>
 
           <CardBox>
+            <SectionLabel icon="rocket" label="VC/スタートアップ投資" />
+            {(() => {
+              const startups = state.startups ?? [];
+              const portfolio = state.vcPortfolio ?? [];
+              const startupsById = new Map(startups.map((s) => [s.id, s]));
+              const portfolioValue = calculatePortfolioValue(portfolio, startupsById);
+              const investedStartupIds = new Set(portfolio.map((inv) => inv.startupId));
+              const openOpportunities = startups.filter(
+                (s) => s.stage !== 'exited' && s.stage !== 'failed' && !investedStartupIds.has(s.id)
+              );
+
+              return (
+                <>
+                  {portfolio.length > 0 ? (
+                    <Text className="text-xs text-text-secondary">
+                      保有出資 {portfolio.length}件 ・ ポートフォリオ評価額 {formatCurrency(portfolioValue)}
+                    </Text>
+                  ) : (
+                    <Text className="text-xs text-text-muted">まだ出資したスタートアップはありません</Text>
+                  )}
+                  {openOpportunities.length === 0 ? (
+                    <Text className="text-xs text-text-muted">現在、投資可能な案件はありません(四半期ごとに補充されます)</Text>
+                  ) : (
+                    openOpportunities.map((startup, index) => {
+                      const affordable = state.cash >= STARTUP_INVESTMENT_AMOUNT;
+                      return (
+                        <CatalogRow
+                          key={startup.id}
+                          index={index}
+                          disabled={!affordable}
+                          onPress={() => investInStartup(startup, STARTUP_INVESTMENT_AMOUNT)}
+                        >
+                          <View className="flex-1">
+                            <Text className="text-sm text-text-primary">{startup.name}</Text>
+                            <Text className="text-xs text-text-muted">
+                              {STARTUP_SECTOR_LABELS[startup.sector]} ・ {STARTUP_STAGE_LABELS[startup.stage]} ・ 評価額{' '}
+                              {formatCurrency(startup.valuation)}
+                            </Text>
+                          </View>
+                          <Text className="text-sm font-semibold text-text-primary">{formatCurrency(STARTUP_INVESTMENT_AMOUNT)}出資</Text>
+                        </CatalogRow>
+                      );
+                    })
+                  )}
+                </>
+              );
+            })()}
+          </CardBox>
+
+          <CardBox>
             <SectionLabel icon="storefront" label="フランチャイズ収益" />
             {(state.franchiseContracts?.length ?? 0) === 0 ? (
               <Text className="text-xs text-text-muted">
@@ -953,6 +1052,46 @@ export function CorporateScreen() {
                           onPress={() => unlockResearchNode(node.id)}
                         />
                       ) : null}
+                    </View>
+                  );
+                })}
+            </CardBox>
+          ))}
+        </>
+      ) : null}
+
+      {activeDept === 'menu' ? (
+        <>
+          {MENU_CATEGORIES.map((category) => (
+            <CardBox key={category}>
+              <SectionLabel icon="restaurant" label={MENU_CATEGORY_LABELS[category]} />
+              {menuCatalog
+                .filter((template) => template.category === category)
+                .map((template, index) => {
+                  const unlocked = (state.unlockedMenuItemIds ?? []).includes(template.templateId);
+                  const affordable = state.cash >= template.unlockCost;
+                  const margin = template.basePrice > 0 ? (template.basePrice - template.costOfGoods) / template.basePrice : 0;
+                  return (
+                    <View key={template.templateId} className={`gap-xs py-sm ${index === 0 ? '' : 'border-t border-border'}`}>
+                      <View className="flex-row items-center justify-between">
+                        <Text className="flex-shrink text-sm text-text-primary">{template.name}</Text>
+                        {unlocked ? <Ionicons name="checkmark-circle" size={16} color={colors.positive} /> : null}
+                      </View>
+                      <Text className="text-xs text-text-muted">
+                        価格目安 {formatCurrency(template.basePrice)} ・ 原価 {formatCurrency(template.costOfGoods)}(粗利
+                        {Math.round(margin * 100)}%) ・ 品質{template.qualityScore}
+                      </Text>
+                      {!unlocked ? (
+                        <AppButton
+                          label={template.unlockCost > 0 ? `レシピ開発(${formatCurrency(template.unlockCost)})` : '開発済み(コストなし)'}
+                          icon="flask"
+                          variant="secondary"
+                          disabled={!affordable}
+                          onPress={() => unlockMenuItem(template.templateId)}
+                        />
+                      ) : (
+                        <Text className="text-xs text-text-muted">各店舗の「運営」タブから追加できます</Text>
+                      )}
                     </View>
                   );
                 })}

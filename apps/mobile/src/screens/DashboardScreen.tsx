@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { evaluateCompanyAlerts, sortAlertsBySeverity } from '@coffee-empire/core';
 import { useGameStore } from '../state/gameStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Card } from '../components/Card';
@@ -18,6 +19,19 @@ export function DashboardScreen() {
   const navigation = useNavigation<Navigation>();
   const { latestIncomeStatement, error, dismissError, state } = useGameStore();
 
+  // 全社レベルのCriticalアラート(現金残高が固定費の数週間分を割った等)。
+  // 店舗数が増えても破綻しない「閾値を割った項目だけ通知する」設計(レポート§5-2)。
+  const companyAlerts = useMemo(
+    () =>
+      sortAlertsBySeverity(
+        evaluateCompanyAlerts({
+          cash: state.cash,
+          monthlyFixedCosts: latestIncomeStatement?.operatingExpenses ?? 0,
+        })
+      ),
+    [state.cash, latestIncomeStatement]
+  );
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>おかえりなさい、経営者さん</Text>
@@ -27,6 +41,17 @@ export function DashboardScreen() {
           <Ionicons name="alert-circle" size={16} color={colors.errorText} />
           <Text style={styles.errorText}>{error}(タップして閉じる)</Text>
         </Pressable>
+      ) : null}
+
+      {companyAlerts.length > 0 ? (
+        <View style={{ gap: spacing.xs }}>
+          {companyAlerts.map((alert) => (
+            <View key={alert.code} style={styles.alertBanner}>
+              <Ionicons name="warning" size={16} color={colors.errorText} />
+              <Text style={styles.errorText}>{alert.message}</Text>
+            </View>
+          ))}
+        </View>
       ) : null}
 
       <View style={styles.statusRow}>
@@ -89,6 +114,14 @@ const styles = StyleSheet.create({
   },
   linkLabel: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.errorBg,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,

@@ -9,6 +9,7 @@ import {
   generatePropertiesForCity,
   resolvePropertyCapacity,
   RENT_PER_TSUBO_JPY,
+  wouldExceedAntitrustCap,
   type City,
   type Property,
 } from '@coffee-empire/core';
@@ -77,6 +78,11 @@ export function NewStoreScreen() {
     [selectedCity, competitorBrands]
   );
 
+  // 独占禁止規制: この都市に1店舗追加すると自社シェアが80%を超える場合、新規出店をブロックする
+  // (都市の店舗総数が一定規模未満なら規制対象外。wouldExceedAntitrustCap参照)。
+  const competitorStoreCountInCity = competitorsInCity.reduce((sum, brand) => sum + brand.count, 0);
+  const antitrustBlocked = wouldExceedAntitrustCap(ownedStoresInCity.length, competitorStoreCountInCity);
+
   if (!selectedCity) {
     return (
       <GridBackdrop className="flex-1">
@@ -117,6 +123,14 @@ export function NewStoreScreen() {
         ListHeaderComponent={
           ownedStoresInCity.length > 0 || competitorsInCity.length > 0 ? (
             <View className="mb-sm gap-xs">
+              {antitrustBlocked ? (
+                <View className="flex-row items-center gap-xs rounded-md border border-negative/40 bg-negative/15 px-sm py-xs">
+                  <WarningIcon size={12} color={colors.negative} />
+                  <Text className="flex-1 text-xs font-semibold text-negative">
+                    独占禁止規制により、この都市への新規出店はブロックされています(自社シェアが上限を超えるため)
+                  </Text>
+                </View>
+              ) : null}
               {ownedStoresInCity.length > 0 ? (
                 <View className="flex-row flex-wrap gap-xs">
                   {ownedStoresInCity.map((store) => (
@@ -177,9 +191,11 @@ export function NewStoreScreen() {
               <Text className="text-xs font-semibold text-text-secondary">¥{property.rentPerMonth.toLocaleString('ja-JP')}/月</Text>
             </View>
             <AppButton
-              label="出店する"
+              label={antitrustBlocked ? '出店不可(独禁規制)' : '出店する'}
               icon="cafe"
+              disabled={antitrustBlocked}
               onPress={() => {
+                if (antitrustBlocked) return;
                 openStore(property, `${selectedCity.name} ${SIZE_LABEL[property.size]}店`);
                 navigation.goBack();
               }}
